@@ -105,8 +105,8 @@ def dct_2d(x, norm='ortho'):
     :param norm: the normalization, None or 'ortho'
     :return: the DCT-II of the signal over the last 2 dimensions
     """
-    X1 = dct(x, norm=norm)
-    X2 = dct(X1.transpose(-1, -2), norm=norm)
+    X1 = dct2(x, norm=norm)
+    X2 = dct2(X1.transpose(-1, -2), norm=norm)
     return X2.transpose(-1, -2)
 
 def idct_2d(X, norm='ortho'):
@@ -119,8 +119,8 @@ def idct_2d(X, norm='ortho'):
     :param norm: the normalization, None or 'ortho'
     :return: the DCT-II of the signal over the last 2 dimensions
     """
-    x1 = idct(X, norm=norm)
-    x2 = idct(x1.transpose(-1, -2), norm=norm)
+    x1 = idct2(X, norm=norm)
+    x2 = idct2(x1.transpose(-1, -2), norm=norm)
     return x2.transpose(-1, -2)
 
 def dct2d(x):
@@ -167,3 +167,6 @@ class Mask(nn.Module):
         return x
 
 
+# Compare against scipy implementations of the above functions
+if __name__ == '__main__':
+    x = torch.rand(5,5)
