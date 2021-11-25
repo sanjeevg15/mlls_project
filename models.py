@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 from torch.nn import Linear, Conv2d, BatchNorm2d
-from torchvision.models import resnet18, vgg16
+from torchvision.models import resnet18, vgg16, resnet
 import torch.nn.functional as F
 from utils import *
+
 
 class Model1(nn.Module):
     def __init__(self, input_shape, dim=128) -> None:
@@ -45,3 +46,25 @@ class Model1(nn.Module):
         x = self.convnet(x)
         return x
     
+class SegmentationModel(nn.Module):
+    def __init__(self, input_shape, backbone='fcn_resnet101') -> None:
+        super().__init__()
+        self.backbone = torch.hub.load('pytorch/vision:v0.10.0', backbone, pretrained=True)
+        self.mask = Mask(input_shape)
+
+    def frequency_mask(self, x):
+        x = dct_2d(x)
+        x = self.mask(x)  
+        x = idct_2d(x)
+        return x
+
+    def convnet(self, x):
+        x = self.backbone(x)
+        return x
+
+    def forward(self, x):
+        x = self.frequency_mask(x)
+        x = self.convnet(x)
+        return x
+    
+
