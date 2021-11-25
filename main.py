@@ -1,43 +1,55 @@
+from torch.nn.modules.loss import CrossEntropyLoss
 from torch.utils import data
-import numpy as np
-from PIL import Image
 import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
-from utils import dct2, idct2, init_mask
-from torchvision.transforms import transforms
+from torchvision.transforms import transforms as T
+from torchvision.datasets import ImageFolder
 from argparse import PARSER
+from utils import init_mask
+from torch.utils.data import DataLoader
+import argparse
+from models import *
+import torch.optim as optim
+from tqdm import tqdm
 
+parser = argparse.ArgumentParser(description='Auto FSDR Training')
 
-class FSDRDataset(Dataset):
-    '''
-        mask: mask applied to the dct of each image
-    '''
-    def __init__(self, mask, data_df, transform=None):
-        '''
-        mask: mask whose shape is same as shape of images in the dataset
-        data_df: csv containing file name and corresponding label
-        transform = transformation to be applied to images 
-        '''
-        self.mask = mask
-        self.transform = transform
-        self.data_df = data_df
+parser.add_argument('--batch_size', default=64, type=int)
+parser.add_argument('--num_epochs', default=20, type=int)
+# parser.add_argument()
 
-    def get_masked_image(self, dct, mask):
-        masked_dct = dct*mask
-        masked_image = idct2(masked_dct)
-        return masked_image
+args = parser.parse_args()
 
-    def __len__(self):
-        return len(self.data_df)
-
-    def __getitem__(self, index):
-        image = Image.open(self.data_df[index].convert('RGB'))
-        image = self.get_masked_image(image, self.mask)
-        label = self.data_df['label'][index]
-        return image, label 
-
-transpose = transforms.Compose(transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225]))
+transform = T.Compose([T.ToTensor(), T.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])])
 shape = [3,32,32]
 mask = init_mask(shape=shape)
+train_root = r'C:\Users\sanje\Documents\Projects\mlls_project\datasets\CIFAR10\test' 
+# val_root = ''
 
-dataset = FSDRDataset(mask, data_df=)
+train_dataset = ImageFolder(train_root, transform=transform)
+# val_dataset = ImageFolder(val_root)
+
+train_loader = DataLoader(train_dataset, batch_size=args.batch_size)
+# val_loader = DataLoader(val_dataset, batch_size=args.batch_size)
+
+# input_shape = [args.batch_size] + shape
+input_shape = shape
+# print(input_shape)
+model = Model1(input_shape=input_shape, dim=10)
+
+# Training Specifics
+optimizer = optim.Adam(params=model.parameters(), lr=1e-4)
+loss_fn = CrossEntropyLoss()
+
+for epoch in range(args.num_epochs):
+    epoch_loss = []
+    for i, (inputs, labels) in tqdm(enumerate(train_loader)):
+        optimizer.zero_grad()
+
+        outputs = model(inputs)
+
+        loss = loss_fn(outputs, labels)
+        epoch_loss.append(loss.item())
+        loss.backward()
+        optimizer.step()
+    avg_loss = np.mean(epoch_loss)
+    print('[%d] loss: %0.3f' % (epoch, avg_loss))

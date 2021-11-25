@@ -158,12 +158,16 @@ class DCT2D(nn.Module):
 class Mask(nn.Module):
     def __init__(self, input_dims):
         super().__init__()
-        self.height, self.width = input_dims
-        weights = torch.Tensor(self.height, self.width)
+        # print('Input Dims: ', input_dims)
+        weights = torch.Tensor(torch.Size(input_dims))
         self.weights = nn.Parameter(weights)
+        nn.init.normal_(self.weights)
+
 
     def forward(self, x):
-        x = torch.mul(x, self.weights)
+        # print('X Shape: ', x.shape)
+        # print('Weigths Shape: ', self.weights.shape)
+        x = x * self.weights.unsqueeze(0)
         return x
 
 
