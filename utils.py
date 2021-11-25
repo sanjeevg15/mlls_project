@@ -167,7 +167,7 @@ class Mask(nn.Module):
     def forward(self, x):
         # print('X Shape: ', x.shape)
         # print('Weigths Shape: ', self.weights.shape)
-        x = x * self.weights.unsqueeze(0)
+        x = x * torch.sigmoid(self.weights.unsqueeze(0))
         return x
 
 

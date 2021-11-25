@@ -5,17 +5,27 @@ from torchvision.models import resnet18, vgg16
 import torch.nn.functional as F
 from utils import *
 
+# for downloading resnet
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+
 class Model1(nn.Module):
-    def __init__(self, input_shape, dim=128) -> None:
+    def __init__(self, input_shape, dim=128, use_resnet=False) -> None:
         super().__init__()
         # In: 3x32x32 (CIFAR)
         self.mask = Mask(input_shape)
-        self.conv1 = nn.Conv2d(3, 6, 3, padding=(2, 2))  # Out: 6x32x32
-        self.pool = nn.MaxPool2d(2, 2)  # Out: 6x16x16
-        self.conv2 = nn.Conv2d(6, 10, 3)  # Out: 10x14x14
-        self.conv3 = nn.Conv2d(10, 16, 3)  # Out: 16x13x13
-        self.fc1 = nn.Linear(16*13*13, 256)
-        self.fc2 = nn.Linear(256, dim)
+        self.use_resnet = use_resnet
+        if use_resnet==False:
+            self.conv1 = nn.Conv2d(3, 6, 3, padding=(2, 2))  
+            self.pool = nn.MaxPool2d(2, 2)  # Out: 10x114x114
+            self.conv2 = nn.Conv2d(6, 10, 3)  # Out: 10x112x112
+            self.conv3 = nn.Conv2d(10, 16, 3)  # Out: 16x110x110
+            self.fc1 = nn.Linear(16*110*110, 256)
+            self.fc2 = nn.Linear(256, dim)
+        else:
+            resnet = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=True)
+            resnet.fc = nn.Linear(512, dim)
+            self.resnet = resnet
 
     def apply_mask1(self, x):
         # print(x.shape)
@@ -42,6 +52,9 @@ class Model1(nn.Module):
 
     def forward(self, x):
         x = self.apply_mask1(x)
-        x = self.convnet(x)
+        if self.use_resnet:
+            x = self.resnet(x)
+        else:
+            x = self.convnet(x)
         return x
     
