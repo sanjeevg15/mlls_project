@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from utils import *
 
 
-class Model1(nn.Module):
+class ClassificationModel(nn.Module):
     def __init__(self, input_shape, dim=128) -> None:
         super().__init__()
         # In: 3x32x32 (CIFAR)
@@ -18,25 +18,17 @@ class Model1(nn.Module):
         self.fc1 = nn.Linear(16*13*13, 256)
         self.fc2 = nn.Linear(256, dim)
 
-    def apply_mask1(self, x):
-        # print(x.shape)
+    def frequency_mask(self, x):
         x = dct_2d(x)
-        # print(x.shape)
         x = self.mask(x)  
-        # print(x.shape)
         x = idct_2d(x)
         return x
 
-    def apply_mask2(self, x):
-        return self.mask(x)
-
     def convnet(self, x):
-        # print('ConvNet Input Shape: ',  x.shape)
         x = self.pool(F.relu(self.conv1(x)))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         x = torch.flatten(x, start_dim=1)
-        # print(x.shape)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
