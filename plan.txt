@@ -1,18 +1,40 @@
 1) Get DCTs for all images and store in a folder - class wise, so that we can use ImageDataset class
 	1) Obtain PACS dataset 
-		- Locally v/s Drive/Kaggle? - (Nick)
+		- Locally v/s Drive/Kaggle? - (Nick) -- Done
+
 		 
 2) Build model architecture using a frequency mask
 	1) Build custom layer for element wise multiplication with learnable parameters - done
 		a) Consider normalization of parameters of mask (Sum to 1, from 0 to 1)
-	2) Build architecture - Trivial (Sanjeev, test on CIFAR10)
+	2) Build architecture - Trivial (Sanjeev, test on CIFAR10) -- Done
 	#) Secondary approach - Janvijay
-3) Train our model on PACS dataset
-4) Train FSDR model on PACS dataset - Compare
+
+Progress: Basic architecture for image classification done
+Remaining:
+		1) Add metrics - loss and accuracy and save these to file after every epoch
+		2) Implement checkpoint save
+		3) Decide upon architecture for each task.
+			a) How many architectures to try?
+			b) Use FSDR model architecture or our own (smaller) architecture
+
+			
+
+
+3) Train our model on PACS dataset -- Ongoing (Janvijay)
+		
+	1) Run experiment on PACS
+		1) Pool data
+	
+
+4) Train FSDR model on PACS dataset - Compare (Use same model architecture)
 5) Compare frequency components that are identified as domain variant and domain invariant (FSDR vs ours)
 	1) Ours - weights of the layer give importance of frequency components
 	2) Frequency components
 6) Randomize domain variant components and check model performance - FSDR v/s ours
+	Details:
+		1) How exactly are the components randomized?
+		2) How many more "domains"? 
+
 7) Steps 3 to 6 on:
 	a) Image segmentation GTA5 to {Cityscapes, _____, ____} 
 		i) Get datasets onto Kaggle:
@@ -24,3 +46,5 @@
 
 8) baseline1 + ours v/s baseline1 + FSDR
 9) baseline2 + ours v/s baseline2 + FSDR
+
+Details about above baselines. Pick two easiest/already implemented baselines and get implementation details
