@@ -7,6 +7,7 @@ from argparse import PARSER
 from utils import init_mask
 from torch.utils.data import DataLoader
 import argparse
+import os
 from models import *
 import torch.optim as optim
 from tqdm import tqdm
@@ -23,19 +24,29 @@ args = parser.parse_args()
 transform = T.Compose([T.ToTensor(), T.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])])
 shape = [3,227,227]
 mask = init_mask(shape=shape)
-train_root = r'/raid/home/jsingh319/codes/dataset/pacs/pacs_data_original/art_painting' 
-# val_root = ''
 
-train_dataset = ImageFolder(train_root, transform=transform)
-# val_dataset = ImageFolder(val_root)
+data_root = r'/raid/home/jsingh319/codes/dataset/pacs/pacs_data_original'
+pacs_domains = os.listdir(data_root)
+domain_datasets = {}
+for domain in pacs_domains:
+    domain_datasets[domain] = ImageFolder(os.path.join(data_root, domain), transform=transform)
 
-train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-# val_loader = DataLoader(val_dataset, batch_size=args.batch_size)
+# domain to be considered as target (testing) for domain generalisation setting; rest are source (training) domains.
+TARGET = 'art_painting'
+assert(TARGET in ['art_painting', 'cartoon', 'photo', 'sketch'])
 
-# input_shape = [args.batch_size] + shape
+concat_datasets = []
+for domain in domain_datasets:
+    if domain!=TARGET:
+        concat_datasets.append(domain_datasets[domain])
+source_dataset = data.ConcatDataset(concat_datasets)
+target_dataset = domain_datasets[TARGET]
+
+train_loader = DataLoader(source_dataset, batch_size=args.batch_size, shuffle=True)
+val_loader = DataLoader(target_dataset, batch_size=args.batch_size)
+
 input_shape = shape
-# print(input_shape)
-model = Model1(input_shape=input_shape, dim=7, use_resnet=True).cuda()
+model = ClassificationModel(input_shape=input_shape, dim=7, use_resnet=True, resnet_type='resnet_18').cuda() # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
 # Training Specifics
 optimizer = optim.Adam(params=model.parameters(), lr=1e-4)
@@ -67,16 +78,27 @@ for epoch in range(args.num_epochs):
     writer.add_scalar('loss/mean_c_entropy_per_epoch', avg_loss, epoch+1)
     print('[%d] mean epoch loss: %0.3f' % (epoch+1, avg_loss))
 
-    # logging accuracy on complete train set
     model.eval()
+
+    # logging accuracy on complete train set
     correct = 0
     for i, (inputs, labels) in enumerate(train_loader):
         outputs = model(inputs.cuda())
         _, outputs = torch.max(outputs, dim=1)
         correct += (outputs == labels.cuda()).float().sum()
-    train_accuracy = 100 * correct / len(train_dataset)
+    train_accuracy = 100 * correct / len(source_dataset)
     print("Accuracy on train-dataset:", train_accuracy.item())
     writer.add_scalar('accuracy/train_set_accuracy_per_epoch', train_accuracy.item(), epoch+1)
+
+    # logging accuracy on complete test set
+    correct = 0
+    for i, (inputs, labels) in enumerate(val_loader):
+        outputs = model(inputs.cuda())
+        _, outputs = torch.max(outputs, dim=1)
+        correct += (outputs == labels.cuda()).float().sum()
+    test_accuracy = 100 * correct / len(target_dataset)
+    print("Accuracy on test-dataset[{}]:".format(TARGET), test_accuracy.item())
+    writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(TARGET), test_accuracy.item(), epoch+1)
 
     # logging histogram of mask values
     writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).clone().cpu().data.numpy(), epoch+1)

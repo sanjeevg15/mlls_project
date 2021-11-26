@@ -9,7 +9,7 @@ import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
 class ClassificationModel(nn.Module):
-    def __init__(self, input_shape, dim=128, use_resnet=False) -> None:
+    def __init__(self, input_shape, dim=128, use_resnet=False, resnet_type='resnet18') -> None:
         super().__init__()
         # In: 3x32x32 (CIFAR)
         self.mask = Mask(input_shape)
@@ -22,7 +22,7 @@ class ClassificationModel(nn.Module):
             self.fc1 = nn.Linear(16*110*110, 256)
             self.fc2 = nn.Linear(256, dim)
         else:
-            resnet = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=True)
+            resnet = torch.hub.load('pytorch/vision:v0.10.0', resnet_type, pretrained=True)
             resnet.fc = nn.Linear(512, dim)
             self.resnet = resnet
 
@@ -42,7 +42,7 @@ class ClassificationModel(nn.Module):
         return x
 
     def forward(self, x):
-        x = self.apply_mask1(x)
+        x = self.frequency_mask(x)
         if self.use_resnet:
             x = self.resnet(x)
         else:
