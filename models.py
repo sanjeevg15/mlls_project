@@ -9,10 +9,11 @@ import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
 class ClassificationModel(nn.Module):
-    def __init__(self, input_shape, dim=128, use_resnet=False, resnet_type='resnet18') -> None:
+    def __init__(self, input_shape, dim=128, use_resnet=False, resnet_type='resnet18', no_fq_mask=False) -> None:
         super().__init__()
         self.mask = Mask(input_shape)
         self.use_resnet = use_resnet
+        self.no_fq_mask = no_fq_mask
         if not use_resnet:
             self.conv1 = nn.Conv2d(3, 6, 3, padding=(2, 2))  
             self.pool = nn.MaxPool2d(2, 2)  # Out: 10x114x114
@@ -26,9 +27,11 @@ class ClassificationModel(nn.Module):
             self.resnet = resnet
 
     def frequency_mask(self, x):
-        x = dct_2d(x)
+        if self.no_fq_mask:
+            x = dct_2d(x)
         x = self.mask(x)  
-        x = idct_2d(x)
+        if self.no_fq_mask:
+            x = idct_2d(x)
         return x
 
     def convnet(self, x):

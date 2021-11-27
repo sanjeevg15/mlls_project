@@ -20,8 +20,11 @@ parser = argparse.ArgumentParser(description='Auto FSDR Training')
 parser.add_argument('--batch_size', default=64, type=int)
 parser.add_argument('--num_epochs', default=100, type=int)
 parser.add_argument('--data_root', default=r'C:\Users\sanje\Documents\Projects\mlls_project\datasets\CIFAR10', type=str)
-parser.add_argument('--target_domain', default=-1, type=int, help='Index of the target domain. Remaining domains will be treated as source domains')
+parser.add_argument('--target_domain', default=0, type=int, help='Index of the target domain. Remaining domains will be treated as source domains')
+parser.add_argument('--all_target_domain', default=False, action='store_true', help='Using on each domain as testing domain one at a time')
 parser.add_argument('--input_shape', default=224, type=int, help='Resize all images to this shape')
+parser.add_argument('--no_fq_mask', default=False, action='store_true', help='Turn off the frequency mask')
+parser.add_argument('--lr', default=3e-5, type=float, help='Learning rate for training')
 parser.add_argument('--save_dir', default='../ckpt', type=str, help='Directory to save model checkpoints')
 parser.add_argument('--log_dir', default='../logs', type=str, help='Directory to save tensorboard logs')
 parser.add_argument('--save_ckpt', default='best', type=str, help='Checkpoint saving strategy')
@@ -41,98 +44,118 @@ input_shape = (args.input_shape, args.input_shape)
 
 assert(args.save_ckpt in ['best', 'last', 'all']) # checkpoint saving strategy
 
+# domain to be considered as target (testing) for domain generalisation setting; rest are source (training) domains.
 domain_datasets = {}
 for domain in domains:
     domain_datasets[domain] = ImageFolder(os.path.join(args.data_root, domain), transform=transform)
 
-# domain to be considered as target (testing) for domain generalisation setting; rest are source (training) domains.
+assert(args.target_domain>=0)
+if args.all_target_domain:
+    min_target_domain, max_target_domain = 0, len(domain_datasets)
+else:
+    min_target_domain, max_target_domain = args.target_domain, args.target_domain+1
 
-concat_datasets = []
-for domain in domain_datasets:
-    if domain!=domains[args.target_domain]:
-        concat_datasets.append(domain_datasets[domain])
-source_dataset = data.ConcatDataset(concat_datasets)
-target_dataset = domain_datasets[domains[args.target_domain]]
+domain_best_accuracies = {}
+for target_domain in range(min_target_domain, max_target_domain):
 
-source_loader = DataLoader(source_dataset, batch_size=args.batch_size, shuffle=True)
-target_loader = DataLoader(target_dataset, batch_size=args.batch_size)
+    concat_datasets = []
+    for domain in domain_datasets:
+        if domain!=domains[target_domain]:
+            concat_datasets.append(domain_datasets[domain])
+    source_dataset = data.ConcatDataset(concat_datasets)
+    target_dataset = domain_datasets[domains[target_domain]]
 
-model = ClassificationModel(input_shape=input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18').to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
+    source_loader = DataLoader(source_dataset, batch_size=args.batch_size, shuffle=True)
+    target_loader = DataLoader(target_dataset, batch_size=args.batch_size)
 
+    model = ClassificationModel(input_shape=input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18', no_fq_mask=args.no_fq_mask).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
-# Training Specifics
-optimizer = optim.Adam(params=model.parameters(), lr=1e-4)
-loss_fn = CrossEntropyLoss()
-if args.save_ckpt=='best':
-    best_test_accuracy = 0.0
+    # Training Specifics
+    optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
+    loss_fn = CrossEntropyLoss()
+    if args.save_ckpt=='best':
+        best_test_accuracy = 0.0
 
-# Logging Specifics 
-writer = SummaryWriter(args.log_dir)
+    # create checkpoint and log dir
+    log_dir = os.path.join(args.log_dir, domains[target_domain])
+    save_dir = os.path.join(args.save_dir, domains[target_domain])
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
-total_iters = 0
-mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
-mask_weigths_diff = []
-for epoch in range(args.num_epochs):
-    epoch_loss = []
-    model.train()
+    # Logging Specifics 
+    writer = SummaryWriter(log_dir)
 
-    for i, (inputs, labels) in tqdm(enumerate(source_loader)):
-        optimizer.zero_grad()
-        outputs = model(inputs.to(device)) # [64 * 7]
-        loss = loss_fn(outputs, labels.to(device))
+    total_iters = 0
+    mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
+    mask_weigths_diff = []
+    for epoch in range(args.num_epochs):
+        epoch_loss = []
+        model.train()
 
-        total_iters+=1
-        writer.add_scalar('loss/c_entropy_per_iteration', loss.item(), total_iters)
-        epoch_loss.append(loss.item())
-        print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
-        loss.backward()
-        optimizer.step()
-        mask_weights2 = model.mask.weights.clone().cpu().data.numpy()
-        mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
-        current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
-        writer.add_scalar('freq_mask_weigths_norm_diff', current_weigths_diff, total_iters)
-        mask_weights1 = mask_weights2
+        for i, (inputs, labels) in tqdm(enumerate(source_loader)):
+            optimizer.zero_grad()
+            outputs = model(inputs.to(device)) # [64 * 7]
+            loss = loss_fn(outputs, labels.to(device))
 
-    # logging mean epoch loss
-    avg_loss = np.mean(epoch_loss)
-    writer.add_scalar('loss/mean_c_entropy_per_epoch', avg_loss, epoch+1)
-    print('[%d] mean epoch loss: %0.3f' % (epoch+1, avg_loss))
+            total_iters+=1
+            writer.add_scalar('loss/c_entropy_per_iteration', loss.item(), total_iters)
+            epoch_loss.append(loss.item())
+            print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
+            loss.backward()
+            optimizer.step()
+            mask_weights2 = model.mask.weights.clone().cpu().data.numpy()
+            mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
+            current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
+            writer.add_scalar('freq_mask_weigths_norm_diff', current_weigths_diff, total_iters)
+            mask_weights1 = mask_weights2
 
-    model.eval()
+        # logging mean epoch loss
+        avg_loss = np.mean(epoch_loss)
+        writer.add_scalar('loss/mean_c_entropy_per_epoch', avg_loss, epoch+1)
+        print('[%d] mean epoch loss: %0.3f' % (epoch+1, avg_loss))
 
-    # logging accuracy on complete train set
-    correct = 0
-    for i, (inputs, labels) in enumerate(source_loader):
-        outputs = model(inputs.to(device))
-        _, outputs = torch.max(outputs, dim=1)
-        correct += (outputs == labels.to(device)).float().sum()
-    train_accuracy = 100 * correct / len(source_dataset)
-    print("Accuracy on train-dataset:", train_accuracy.item())
-    writer.add_scalar('accuracy/train_set_accuracy_per_epoch', train_accuracy.item(), epoch+1)
+        model.eval()
 
-    # logging accuracy on complete test set
-    correct = 0
-    for i, (inputs, labels) in enumerate(target_loader):
-        outputs = model(inputs.to(device))
-        _, outputs = torch.max(outputs, dim=1)
-        correct += (outputs == labels.to(device)).float().sum()
-    test_accuracy = 100 * correct / len(target_dataset)
-    print("Accuracy on test-dataset[{}]:".format(domains[args.target_domain]), test_accuracy.item())
-    writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[args.target_domain]), test_accuracy.item(), epoch+1)
-    
-    # logging histogram of mask values
-    writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).
-    clone().cpu().data.numpy(), epoch+1)
+        # logging accuracy on complete train set
+        correct = 0
+        for i, (inputs, labels) in enumerate(source_loader):
+            outputs = model(inputs.to(device))
+            _, outputs = torch.max(outputs, dim=1)
+            correct += (outputs == labels.to(device)).float().sum()
+        train_accuracy = 100 * correct / len(source_dataset)
+        print("Accuracy on train-dataset:", train_accuracy.item())
+        writer.add_scalar('accuracy/train_set_accuracy_per_epoch', train_accuracy.item(), epoch+1)
 
-    # saving the model
-    if args.save_ckpt=='last':
-        torch.save(model.state_dict(), os.path.join(args.save_dir, 'ckpt_last.pt'))
-    elif args.save_ckpt=='best':
-        if test_accuracy > best_test_accuracy:
-            torch.save(model.state_dict(), os.path.join(args.save_dir, 'ckpt_best.pt'))
-            best_test_accuracy = test_accuracy
-    else:
-        torch.save(model.state_dict(), os.path.join(args.save_dir, 'ckpt_{}.pt'.format(epoch+1)))
-    
+        # logging accuracy on complete test set
+        correct = 0
+        for i, (inputs, labels) in enumerate(target_loader):
+            outputs = model(inputs.to(device))
+            _, outputs = torch.max(outputs, dim=1)
+            correct += (outputs == labels.to(device)).float().sum()
+        test_accuracy = 100 * correct / len(target_dataset)
+        print("Accuracy on test-dataset[{}]:".format(domains[target_domain]), test_accuracy.item())
+        writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[target_domain]), test_accuracy.item(), epoch+1)
+        
+        # logging histogram of mask values
+        writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).
+        clone().cpu().data.numpy(), epoch+1)
+
+        # saving the model
+        if args.save_ckpt=='last':
+            torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_last.pt'))
+        elif args.save_ckpt=='best':
+            if test_accuracy > best_test_accuracy:
+                torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_best.pt'))
+                best_test_accuracy = test_accuracy
+        else:
+            torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_{}.pt'.format(epoch+1)))
+
+    domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
+
+print("Best test accuracies on all target domains:", domain_best_accuracies)
+print("Average test accuracies across domains:", sum(domain_best_accuracies.values()) / len(domain_best_accuracies))
+        
 
 
