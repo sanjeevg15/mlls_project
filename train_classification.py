@@ -103,8 +103,8 @@ for epoch in range(args.num_epochs):
         _, outputs = torch.max(outputs, dim=1)
         correct += (outputs == labels.to(device)).float().sum()
     test_accuracy = 100 * correct / len(target_dataset)
-    print("Accuracy on test-dataset[{}]:".format(domains[args.target_index]), test_accuracy.item())
-    writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[args.target_index]), test_accuracy.item(), epoch+1)
+    print("Accuracy on test-dataset[{}]:".format(domains[args.target_domain]), test_accuracy.item())
+    writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[args.target_domain]), test_accuracy.item(), epoch+1)
     
     # logging histogram of mask values
     writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).clone().cpu().data.numpy(), epoch+1)
