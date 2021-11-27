@@ -1,3 +1,4 @@
+from torch.cuda import current_blas_handle
 from torch.nn.modules.loss import CrossEntropyLoss
 from torch.utils import data
 # import matplotlib.pyplot as plt
@@ -62,12 +63,14 @@ loss_fn = CrossEntropyLoss()
 writer = SummaryWriter('../logs')
 
 total_iters = 0
+mask_weights1 = model.mask.weigths.clone().cpu().data.numpy()
+mask_weigths_diff = []
 for epoch in range(args.num_epochs):
     epoch_loss = []
     model.train()
+
     for i, (inputs, labels) in tqdm(enumerate(source_loader)):
         optimizer.zero_grad()
-
         outputs = model(inputs.to(device)) # [64 * 7]
         loss = loss_fn(outputs, labels.to(device))
 
@@ -75,9 +78,13 @@ for epoch in range(args.num_epochs):
         writer.add_scalar('loss/c_entropy_per_iteration', loss.item(), total_iters)
         epoch_loss.append(loss.item())
         print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
-
         loss.backward()
         optimizer.step()
+        mask_weights2 = model.mask.weigths.clone().cpu().data.numpy()
+        mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
+        current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
+        writer.add_scalar('freq_mask_weigths_norm_diff', current_weigths_diff, total_iters)
+        mask_weights1 = mask_weights2
 
     # logging mean epoch loss
     avg_loss = np.mean(epoch_loss)
@@ -107,7 +114,8 @@ for epoch in range(args.num_epochs):
     writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[args.target_domain]), test_accuracy.item(), epoch+1)
     
     # logging histogram of mask values
-    writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).clone().cpu().data.numpy(), epoch+1)
+    writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).
+    clone().cpu().data.numpy(), epoch+1)
     
 
 
