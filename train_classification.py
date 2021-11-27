@@ -27,8 +27,9 @@ transform = T.Compose([T.Resize((224,224)),
             T.ToTensor(), 
             T.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])])
 
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-domains = os.listdir(args.data_root)
+domains = [i for i in os.listdir(args.data_root) if os.path.isdir(os.path.join(args.data_root, i))]
 classes = os.listdir(os.path.join(args.data_root, domains[0]))
 n_classes = len(classes)
 images = os.listdir(os.path.join(args.data_root, domains[0], classes[0]))
@@ -50,9 +51,8 @@ target_dataset = domain_datasets[domains[args.target_domain]]
 source_loader = DataLoader(source_dataset, batch_size=args.batch_size, shuffle=True)
 target_loader = DataLoader(target_dataset, batch_size=args.batch_size)
 
-# model = ClassificationModel(input_shape=input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18').cuda() # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
+model = ClassificationModel(input_shape=input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18').to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
-model = ClassificationModel(input_shape=input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18') # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
 # Training Specifics
 optimizer = optim.Adam(params=model.parameters(), lr=1e-4)
@@ -68,10 +68,8 @@ for epoch in range(args.num_epochs):
     for i, (inputs, labels) in tqdm(enumerate(source_loader)):
         optimizer.zero_grad()
 
-        # outputs = model(inputs.cuda()) # [64 * 7]
-        outputs = model(inputs) # [64 * 7]
-        # loss = loss_fn(outputs, labels.cuda())
-        loss = loss_fn(outputs, labels)
+        outputs = model(inputs.to(device)) # [64 * 7]
+        loss = loss_fn(outputs, labels.to(device))
 
         total_iters+=1
         writer.add_scalar('loss/c_entropy_per_iteration', loss.item(), total_iters)
@@ -91,9 +89,9 @@ for epoch in range(args.num_epochs):
     # logging accuracy on complete train set
     correct = 0
     for i, (inputs, labels) in enumerate(source_loader):
-        outputs = model(inputs.cuda())
+        outputs = model(inputs.to(device))
         _, outputs = torch.max(outputs, dim=1)
-        correct += (outputs == labels.cuda()).float().sum()
+        correct += (outputs == labels.to(device)).float().sum()
     train_accuracy = 100 * correct / len(source_dataset)
     print("Accuracy on train-dataset:", train_accuracy.item())
     writer.add_scalar('accuracy/train_set_accuracy_per_epoch', train_accuracy.item(), epoch+1)
@@ -101,9 +99,9 @@ for epoch in range(args.num_epochs):
     # logging accuracy on complete test set
     correct = 0
     for i, (inputs, labels) in enumerate(target_loader):
-        outputs = model(inputs.cuda())
+        outputs = model(inputs.to(device))
         _, outputs = torch.max(outputs, dim=1)
-        correct += (outputs == labels.cuda()).float().sum()
+        correct += (outputs == labels.to(device)).float().sum()
     test_accuracy = 100 * correct / len(target_dataset)
     print("Accuracy on test-dataset[{}]:".format(domains[args.target_index]), test_accuracy.item())
     writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[args.target_index]), test_accuracy.item(), epoch+1)
