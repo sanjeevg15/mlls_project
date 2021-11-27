@@ -22,6 +22,9 @@ parser.add_argument('--num_epochs', default=100, type=int)
 parser.add_argument('--data_root', default=r'C:\Users\sanje\Documents\Projects\mlls_project\datasets\CIFAR10', type=str)
 parser.add_argument('--target_domain', default=-1, type=int, help='Index of the target domain. Remaining domains will be treated as source domains')
 parser.add_argument('--input_shape', default=224, type=int, help='Resize all images to this shape')
+parser.add_argument('--save_dir', default='../ckpt', type=str, help='Directory to save model checkpoints')
+parser.add_argument('--log_dir', default='../logs', type=str, help='Directory to save tensorboard logs')
+parser.add_argument('--save_ckpt', default='best', type=str, help='Checkpoint saving strategy')
 args = parser.parse_args()
 
 transform = T.Compose([T.Resize((224,224)), 
@@ -35,6 +38,8 @@ classes = os.listdir(os.path.join(args.data_root, domains[0]))
 n_classes = len(classes)
 images = os.listdir(os.path.join(args.data_root, domains[0], classes[0]))
 input_shape = (args.input_shape, args.input_shape)
+
+assert(args.save_ckpt in ['best', 'last', 'all']) # checkpoint saving strategy
 
 domain_datasets = {}
 for domain in domains:
@@ -58,12 +63,14 @@ model = ClassificationModel(input_shape=input_shape, dim=n_classes, use_resnet=T
 # Training Specifics
 optimizer = optim.Adam(params=model.parameters(), lr=1e-4)
 loss_fn = CrossEntropyLoss()
+if args.save_ckpt=='best':
+    best_test_accuracy = 0.0
 
 # Logging Specifics 
-writer = SummaryWriter('../logs')
+writer = SummaryWriter(args.log_dir)
 
 total_iters = 0
-mask_weights1 = model.mask.weigths.clone().cpu().data.numpy()
+mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
 mask_weigths_diff = []
 for epoch in range(args.num_epochs):
     epoch_loss = []
@@ -80,7 +87,7 @@ for epoch in range(args.num_epochs):
         print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
         loss.backward()
         optimizer.step()
-        mask_weights2 = model.mask.weigths.clone().cpu().data.numpy()
+        mask_weights2 = model.mask.weights.clone().cpu().data.numpy()
         mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
         current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
         writer.add_scalar('freq_mask_weigths_norm_diff', current_weigths_diff, total_iters)
@@ -116,6 +123,16 @@ for epoch in range(args.num_epochs):
     # logging histogram of mask values
     writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).
     clone().cpu().data.numpy(), epoch+1)
+
+    # saving the model
+    if args.save_ckpt=='last':
+        torch.save(model.state_dict(), os.path.join(args.save_dir, 'ckpt_last.pt'))
+    elif args.save_ckpt=='best':
+        if test_accuracy > best_test_accuracy:
+            torch.save(model.state_dict(), os.path.join(args.save_dir, 'ckpt_best.pt'))
+            best_test_accuracy = test_accuracy
+    else:
+        torch.save(model.state_dict(), os.path.join(args.save_dir, 'ckpt_{}.pt'.format(epoch+1)))
     
 
 
