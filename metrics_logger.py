@@ -29,8 +29,8 @@ class MetricsLogger:
             plt.savefig(fname=fname, facecolor='white', )
     
     def save_dict(self, save_path='./metrics/metrics.pickle'):
-        if not os.path.isdir(os.path.dirname()):
-            os.makedirs(os.path.dirname())
+        if not os.path.isdir(os.path.dirname(save_path)):
+            os.makedirs(os.path.dirname(save_path))
         with open(save_path, 'wb') as f:
             pickle.dump(self.metrics_dict, f)
 
