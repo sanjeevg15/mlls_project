@@ -16,14 +16,14 @@ from PIL import Image
 from tensorboardX import SummaryWriter
 from metrics_logger import MetricsLogger
 
-def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, save_dir, save_ckpt='best'):
+def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, save_dir, model_details_dict, save_ckpt='best'):
     # Initialize variables to log metrics
     total_iters = 0
     mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
     mask_weigths_diff = []
 
     # Create logger to log metrics
-    logger = MetricsLogger()
+    logger = MetricsLogger(model_details = model_details_dict)
     writer = SummaryWriter(log_dir)
 
     if save_ckpt=='best':
@@ -89,6 +89,8 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
         # saving the model
         if save_ckpt=='last':
             torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_last.pt'))
+            if test_accuracy > best_test_accuracy:
+                best_test_accuracy = test_accuracy
         elif save_ckpt=='best':
             if test_accuracy > best_test_accuracy:
                 torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_best.pt'))
@@ -97,7 +99,7 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
             torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_{}.pt'.format(epoch+1)))
     
     # domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
-    logger.add_metric('Domain wise Best accuracy', domains[target_domain], best_test_accuracy.item())
+    logger.add_metric('best_target_accuracies', domains[target_domain], best_test_accuracy.item())
     logger.save_dict()
     
     # Logging Specifics 
@@ -108,14 +110,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Auto FSDR Training')
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--num_epochs', default=100, type=int)
-    parser.add_argument('--data_root', default=r'C:\Users\sanje\Documents\Projects\mlls_project\datasets\CIFAR10', type=str)
+    parser.add_argument('--data_root', type=str)
     parser.add_argument('--target_domain', default=0, type=int, help='Index of the target domain. Remaining domains will be treated as source domains')
     parser.add_argument('--all_target_domain', default=False, action='store_true', help='Using on each domain as testing domain one at a time')
     parser.add_argument('--input_shape', default=224, type=int, help='Resize all images to this shape')
     parser.add_argument('--no_fq_mask', default=False, action='store_true', help='Turn off the frequency mask')
     parser.add_argument('--lr', default=3e-5, type=float, help='Learning rate for training')
-    parser.add_argument('--save_dir', default='../ckpt', type=str, help='Directory to save model checkpoints')
-    parser.add_argument('--log_dir', default='../logs', type=str, help='Directory to save tensorboard logs')
+    parser.add_argument('--save_dir', default='./ckpt', type=str, help='Directory to save model checkpoints')
+    parser.add_argument('--log_dir', default='./logs', type=str, help='Directory to save tensorboard logs')
     parser.add_argument('--save_ckpt', default='best', type=str, help='Checkpoint saving strategy')
     parser.add_argument('--train_regime', default='normal', type=str, help = " 'normal' or 'alternating'. If normal, all layers are trained simultaneously. If alternating, frequency mask & remaining layers are trained alternatively keeping one part frozen every time")
     parser.add_argument('--initialization', default='ones', type=str, help="'ones' or 'random normal' or 'xavier' initialization for the frequency mask")
@@ -179,12 +181,9 @@ if __name__ == '__main__':
             os.makedirs(log_dir)
 
 
-        # Start training
-        train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, save_dir) #Initiate training
-
-
-
-
+        # Training Details
+        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': args.no_freq_mask, 'Optimizer': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
+        train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, model_details_dict, save_dir) #Initiate training 
 
         # Print/Save metrics
         # print("Best test accuracies on all target domains:", domain_best_accuracies)

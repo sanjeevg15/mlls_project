@@ -17,6 +17,7 @@ class ClassificationModel(nn.Module):
         self.use_resnet = use_resnet
         self.no_fq_mask = no_fq_mask
         if not use_resnet:
+            self.name = 'No Resnet'
             self.conv1 = nn.Conv2d(3, 6, 3, padding=(2, 2))  
             self.pool = nn.MaxPool2d(2, 2)  # Out: 10x114x114
             self.conv2 = nn.Conv2d(6, 10, 3)  # Out: 10x112x112
@@ -24,6 +25,7 @@ class ClassificationModel(nn.Module):
             self.fc1 = nn.Linear(16*110*110, 256)
             self.fc2 = nn.Linear(256, dim)
         else:
+            self.name = resnet_type
             resnet = torch.hub.load('pytorch/vision:v0.10.0', resnet_type, pretrained=True)
             resnet.fc = nn.Linear(512, dim)
             self.resnet = resnet

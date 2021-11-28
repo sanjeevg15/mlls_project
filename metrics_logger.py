@@ -1,10 +1,16 @@
 import pickle
 import matplotlib.pyplot as plt
 import os
+from time import time
+
+from torch.serialization import save
 
 class MetricsLogger:
-    def __init__(self):
+    def __init__(self, model_details):
         self.metrics_dict = {}
+        self.model_details=model_details
+        self.metrics_dict['Model Details'] = self.model_detials
+
         pass
     
     def add_metric(self, name: str, x_val, y_val):
@@ -28,7 +34,9 @@ class MetricsLogger:
             plt.plot(x, y)
             plt.savefig(fname=fname, facecolor='white', )
     
-    def save_dict(self, save_path='./metrics/metrics.pickle'):
+    def save_dict(self, save_path='auto'):
+        if save_path=='auto':
+            save_path = './metrics/metrics.pickle' + str(time())
         if not os.path.isdir(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path))
         with open(save_path, 'wb') as f:
