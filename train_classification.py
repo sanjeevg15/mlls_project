@@ -14,6 +14,7 @@ import torch.optim as optim
 from tqdm import tqdm
 from PIL import Image
 from tensorboardX import SummaryWriter
+from metrics_logger import MetricsLogger
 
 parser = argparse.ArgumentParser(description='Auto FSDR Training')
 
@@ -90,6 +91,12 @@ for target_domain in range(min_target_domain, max_target_domain):
     total_iters = 0
     mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
     mask_weigths_diff = []
+
+    # Create logger to log metrics
+    logger = MetricsLogger()
+
+    #Initiate training
+
     for epoch in range(args.num_epochs):
         epoch_loss = []
         model.train()
@@ -101,6 +108,8 @@ for target_domain in range(min_target_domain, max_target_domain):
 
             total_iters+=1
             writer.add_scalar('loss/c_entropy_per_iteration', loss.item(), total_iters)
+            logger.add_metric('loss', total_iters,loss)
+
             epoch_loss.append(loss.item())
             print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
             loss.backward()
@@ -109,13 +118,15 @@ for target_domain in range(min_target_domain, max_target_domain):
             mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
             current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
             writer.add_scalar('freq_mask_weigths_norm_diff', current_weigths_diff, total_iters)
+            logger.add_metric('freq_mask_change', total_iters, current_weigths_diff)
             mask_weights1 = mask_weights2
 
         # logging mean epoch loss
         avg_loss = np.mean(epoch_loss)
+        logger.add_metric('train_accuracy', epoch, train_accuracy)
+        logger.add_metric('test_accuracy', epoch, test_accuracy)
         writer.add_scalar('loss/mean_c_entropy_per_epoch', avg_loss, epoch+1)
         print('[%d] mean epoch loss: %0.3f' % (epoch+1, avg_loss))
-
         model.eval()
 
         # logging accuracy on complete train set
@@ -151,6 +162,8 @@ for target_domain in range(min_target_domain, max_target_domain):
                 best_test_accuracy = test_accuracy
         else:
             torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_{}.pt'.format(epoch+1)))
+    
+    logger.save_dict()
 
     domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
 
