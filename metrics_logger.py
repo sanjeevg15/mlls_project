@@ -29,6 +29,7 @@ class MetricsLogger:
             plt.savefig(fname=fname, facecolor='white', )
     
     def save_dict(self, save_path='./metrics/metrics.pkl'):
-        pickle.dump(self.metrics_dict, save_path)
+        with open(save_path, 'wb') as f:
+            pickle.dump(self.metrics_dict, f)
 
 
