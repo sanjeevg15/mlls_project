@@ -16,88 +16,17 @@ from PIL import Image
 from tensorboardX import SummaryWriter
 from metrics_logger import MetricsLogger
 
-parser = argparse.ArgumentParser(description='Auto FSDR Training')
-
-parser.add_argument('--batch_size', default=64, type=int)
-parser.add_argument('--num_epochs', default=100, type=int)
-parser.add_argument('--data_root', default=r'C:\Users\sanje\Documents\Projects\mlls_project\datasets\CIFAR10', type=str)
-parser.add_argument('--target_domain', default=0, type=int, help='Index of the target domain. Remaining domains will be treated as source domains')
-parser.add_argument('--all_target_domain', default=False, action='store_true', help='Using on each domain as testing domain one at a time')
-parser.add_argument('--input_shape', default=224, type=int, help='Resize all images to this shape')
-parser.add_argument('--no_fq_mask', default=False, action='store_true', help='Turn off the frequency mask')
-parser.add_argument('--lr', default=3e-5, type=float, help='Learning rate for training')
-parser.add_argument('--save_dir', default='../ckpt', type=str, help='Directory to save model checkpoints')
-parser.add_argument('--log_dir', default='../logs', type=str, help='Directory to save tensorboard logs')
-parser.add_argument('--save_ckpt', default='best', type=str, help='Checkpoint saving strategy')
-args = parser.parse_args()
-
-transform = T.Compose([T.Resize((224,224)), 
-            T.ToTensor(), 
-            T.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])])
-
-device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
-domains = [i for i in os.listdir(args.data_root) if os.path.isdir(os.path.join(args.data_root, i))]
-classes = os.listdir(os.path.join(args.data_root, domains[0]))
-n_classes = len(classes)
-images = os.listdir(os.path.join(args.data_root, domains[0], classes[0]))
-input_shape = (args.input_shape, args.input_shape)
-
-assert(args.save_ckpt in ['best', 'last', 'all']) # checkpoint saving strategy
-
-# domain to be considered as target (testing) for domain generalisation setting; rest are source (training) domains.
-domain_datasets = {}
-for domain in domains:
-    domain_datasets[domain] = ImageFolder(os.path.join(args.data_root, domain), transform=transform)
-
-assert(args.target_domain>=0)
-if args.all_target_domain:
-    min_target_domain, max_target_domain = 0, len(domain_datasets)
-else:
-    min_target_domain, max_target_domain = args.target_domain, args.target_domain+1
-
-domain_best_accuracies = {}
-for target_domain in range(min_target_domain, max_target_domain):
-
-    concat_datasets = []
-    for domain in domain_datasets:
-        if domain!=domains[target_domain]:
-            concat_datasets.append(domain_datasets[domain])
-    source_dataset = data.ConcatDataset(concat_datasets)
-    target_dataset = domain_datasets[domains[target_domain]]
-
-    source_loader = DataLoader(source_dataset, batch_size=args.batch_size, shuffle=True)
-    target_loader = DataLoader(target_dataset, batch_size=args.batch_size)
-
-    model = ClassificationModel(input_shape=input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18', no_fq_mask=args.no_fq_mask).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
-
-    # Training Specifics
-    optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
-    loss_fn = CrossEntropyLoss()
-    if args.save_ckpt=='best':
-        best_test_accuracy = 0.0
-
-    # create checkpoint and log dir
-    log_dir = os.path.join(args.log_dir, domains[target_domain])
-    save_dir = os.path.join(args.save_dir, domains[target_domain])
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    # Logging Specifics 
-    writer = SummaryWriter(log_dir)
-
+def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, save_dir):
+    # Initialize variables to log metrics
     total_iters = 0
     mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
     mask_weigths_diff = []
 
     # Create logger to log metrics
     logger = MetricsLogger()
+    writer = SummaryWriter(log_dir)
 
-    #Initiate training
-
-    for epoch in range(args.num_epochs):
+    for epoch in range(num_epochs):
         epoch_loss = []
         model.train()
 
@@ -164,12 +93,100 @@ for target_domain in range(min_target_domain, max_target_domain):
         else:
             torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_{}.pt'.format(epoch+1)))
     
+    # domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
+    logger.add_metric('Domain wise Best accuracy', domains[target_domain], best_test_accuracy.item())
     logger.save_dict()
+    
+    # Logging Specifics 
 
-    domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
+if __name__ == '__main__':
 
-print("Best test accuracies on all target domains:", domain_best_accuracies)
-print("Average test accuracies across domains:", sum(domain_best_accuracies.values()) / len(domain_best_accuracies))
+    # Parse Command Line Arguments
+    parser = argparse.ArgumentParser(description='Auto FSDR Training')
+    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--num_epochs', default=100, type=int)
+    parser.add_argument('--data_root', default=r'C:\Users\sanje\Documents\Projects\mlls_project\datasets\CIFAR10', type=str)
+    parser.add_argument('--target_domain', default=0, type=int, help='Index of the target domain. Remaining domains will be treated as source domains')
+    parser.add_argument('--all_target_domain', default=False, action='store_true', help='Using on each domain as testing domain one at a time')
+    parser.add_argument('--input_shape', default=224, type=int, help='Resize all images to this shape')
+    parser.add_argument('--no_fq_mask', default=False, action='store_true', help='Turn off the frequency mask')
+    parser.add_argument('--lr', default=3e-5, type=float, help='Learning rate for training')
+    parser.add_argument('--save_dir', default='../ckpt', type=str, help='Directory to save model checkpoints')
+    parser.add_argument('--log_dir', default='../logs', type=str, help='Directory to save tensorboard logs')
+    parser.add_argument('--save_ckpt', default='best', type=str, help='Checkpoint saving strategy')
+    parser.add_argument('--train_regime', default='normal', type=str, help = " 'normal' or 'alternating'. If normal, all layers are trained simultaneously. If alternating, frequency mask & remaining layers are trained alternatively keeping one part frozen every time")
+    parser.add_argument('--initialization', default='ones', type=str, help="'ones' or 'random normal' or 'xavier' initialization for the frequency mask")
+    args = parser.parse_args()
+
+
+    # Training Specifics
+    num_epochs = args.num_epochs
+    train_regime = args.train_regime
+    initialization = args.initialization
+
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu') #Select device
+
+    transform = T.Compose([T.Resize((224,224)), 
+                T.ToTensor(), 
+                T.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])]) #Transform every image as per the mentioned transform
+
+    domains = [i for i in os.listdir(args.data_root) if os.path.isdir(os.path.join(args.data_root, i))] # Identify domains from dataset
+    classes = os.listdir(os.path.join(args.data_root, domains[0])) #Identify classses
+    n_classes = len(classes) #Number of classes to decide final layer dimensions
+
+    assert(args.save_ckpt in ['best', 'last', 'all']) # checkpoint saving strategy
+
+    # domain to be considered as target (testing) for domain generalisation setting; rest are source (training) domains.
+    domain_datasets = {}
+    for domain in domains:
+        domain_datasets[domain] = ImageFolder(os.path.join(args.data_root, domain), transform=transform)
+
+    assert(args.target_domain>=0)
+    if args.all_target_domain:
+        min_target_domain, max_target_domain = 0, len(domain_datasets)
+    else:
+        min_target_domain, max_target_domain = args.target_domain, args.target_domain+1
+
+    # domain_best_accuracies = {}
+    for target_domain in range(min_target_domain, max_target_domain):
+
+        concat_datasets = []
+        for domain in domain_datasets:
+            if domain!=domains[target_domain]:
+                concat_datasets.append(domain_datasets[domain])
+        source_dataset = data.ConcatDataset(concat_datasets)
+        target_dataset = domain_datasets[domains[target_domain]]
+
+        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, shuffle=True)
+        target_loader = DataLoader(target_dataset, batch_size=args.batch_size)
+
+        model = ClassificationModel(input_shape=args.input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18', no_fq_mask=args.no_fq_mask).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
+
+        # Training Specifics
+        optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
+        loss_fn = CrossEntropyLoss()
+        if args.save_ckpt=='best':
+            best_test_accuracy = 0.0
+
+        # create checkpoint and log dir
+        log_dir = os.path.join(args.log_dir, domains[target_domain])
+        save_dir = os.path.join(args.save_dir, domains[target_domain])
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+
+        # Start training
+        train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, save_dir) #Initiate training
+
+
+
+
+
+        # Print/Save metrics
+        # print("Best test accuracies on all target domains:", domain_best_accuracies)
+        # print("Average test accuracies across domains:", sum(domain_best_accuracies.values()) / len(domain_best_accuracies))
         
 
 
