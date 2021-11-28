@@ -16,7 +16,7 @@ from PIL import Image
 from tensorboardX import SummaryWriter
 from metrics_logger import MetricsLogger
 
-def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, save_dir):
+def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, save_dir, save_ckpt='best'):
     # Initialize variables to log metrics
     total_iters = 0
     mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
@@ -25,6 +25,9 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
     # Create logger to log metrics
     logger = MetricsLogger()
     writer = SummaryWriter(log_dir)
+
+    if save_ckpt=='best':
+        best_test_accuracy = 0.0 
 
     for epoch in range(num_epochs):
         epoch_loss = []
@@ -84,9 +87,9 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
         clone().cpu().data.numpy(), epoch+1)
 
         # saving the model
-        if args.save_ckpt=='last':
+        if save_ckpt=='last':
             torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_last.pt'))
-        elif args.save_ckpt=='best':
+        elif save_ckpt=='best':
             if test_accuracy > best_test_accuracy:
                 torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_best.pt'))
                 best_test_accuracy = test_accuracy
@@ -165,8 +168,7 @@ if __name__ == '__main__':
         # Training Specifics
         optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
         loss_fn = CrossEntropyLoss()
-        if args.save_ckpt=='best':
-            best_test_accuracy = 0.0
+
 
         # create checkpoint and log dir
         log_dir = os.path.join(args.log_dir, domains[target_domain])
