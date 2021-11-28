@@ -80,9 +80,10 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
         print("Accuracy on test-dataset[{}]:".format(domains[target_domain]), test_accuracy.item())
         writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[target_domain]), test_accuracy.item(), epoch+1)
         
-        # logging histogram of mask values
         logger.add_metric('train_accuracy', epoch, train_accuracy)
         logger.add_metric('test_accuracy', epoch, test_accuracy)
+        logger.add_metric(model.mask.weights.grad)
+        # logging histogram of mask values
         writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).
         clone().cpu().data.numpy(), epoch+1)
 
