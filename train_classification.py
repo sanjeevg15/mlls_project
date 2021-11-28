@@ -40,7 +40,7 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
 
             total_iters+=1
             writer.add_scalar('loss/c_entropy_per_iteration', loss.item(), total_iters)
-            logger.add_metric('loss', total_iters,loss)
+            logger.add_metric('loss', total_iters,loss.item())
 
             epoch_loss.append(loss.item())
             print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
@@ -51,14 +51,17 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
             current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
             writer.add_scalar('freq_mask_weigths_norm_diff', current_weigths_diff, total_iters)
             logger.add_metric('freq_mask_change', total_iters, current_weigths_diff)
+            logger.add_metric('mask_weights_grad', total_iters, model.mask.weights.grad)
             mask_weights1 = mask_weights2
+            # if i == 5:
+            #     break
 
         # logging mean epoch loss
         avg_loss = np.mean(epoch_loss)
 
         writer.add_scalar('loss/mean_c_entropy_per_epoch', avg_loss, epoch+1)
         print('[%d] mean epoch loss: %0.3f' % (epoch+1, avg_loss))
-        model.eval()
+        # model.eval()
 
         # logging accuracy on complete train set
         correct = 0
@@ -66,8 +69,12 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
             outputs = model(inputs.to(device))
             _, outputs = torch.max(outputs, dim=1)
             correct += (outputs == labels.to(device)).float().sum()
+            # if i == 5:
+            #     break
         train_accuracy = 100 * correct / len(source_dataset)
         print("Accuracy on train-dataset:", train_accuracy.item())
+        logger.add_metric('train_accuracy', epoch, train_accuracy.item())
+
         writer.add_scalar('accuracy/train_set_accuracy_per_epoch', train_accuracy.item(), epoch+1)
 
         # logging accuracy on complete test set
@@ -76,13 +83,14 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
             outputs = model(inputs.to(device))
             _, outputs = torch.max(outputs, dim=1)
             correct += (outputs == labels.to(device)).float().sum()
+            # if i == 5:
+            #     break
         test_accuracy = 100 * correct / len(target_dataset)
         print("Accuracy on test-dataset[{}]:".format(domains[target_domain]), test_accuracy.item())
+        logger.add_metric('test_accuracy', epoch, test_accuracy.item())
+
         writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[target_domain]), test_accuracy.item(), epoch+1)
-        
-        logger.add_metric('train_accuracy', epoch, train_accuracy)
-        logger.add_metric('test_accuracy', epoch, test_accuracy)
-        logger.add_metric(model.mask.weights.grad)
+
         # logging histogram of mask values
         writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).
         clone().cpu().data.numpy(), epoch+1)
@@ -100,7 +108,7 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
             torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_{}.pt'.format(epoch+1)))
     
     # domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
-    logger.add_metric('best_target_accuracies', domains[target_domain], best_test_accuracy.item())
+    logger.add_metric('best_target_accuracies', domains[target_domain], best_test_accuracy)
     logger.save_dict()
     
     # Logging Specifics 
@@ -183,7 +191,7 @@ if __name__ == '__main__':
 
 
         # Training Details
-        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': args.no_freq_mask, 'Optimizer': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
+        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': args.no_fq_mask, 'Optimizer': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
         train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, model_details_dict, save_dir) #Initiate training 
 
         # Print/Save metrics

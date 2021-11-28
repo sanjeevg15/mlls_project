@@ -9,16 +9,14 @@ class MetricsLogger:
     def __init__(self, model_details):
         self.metrics_dict = {}
         self.model_details=model_details
-        self.metrics_dict['Model Details'] = self.model_detials
+        self.metrics_dict['Model Details'] = self.model_details
 
         pass
     
     def add_metric(self, name: str, x_val, y_val):
         if not name in self.metrics_dict.keys():
             self.metrics_dict[name] = {}
-        else:
-            d = self.metrics_dict[name]
-            d[x_val] = y_val
+        self.metrics_dict[name][x_val] = y_val
         
     def plot_metrics(self, which='all', save_dir='./metrics/'):
         if not os.path.isdir(save_dir):
