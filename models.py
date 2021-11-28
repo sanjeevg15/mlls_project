@@ -28,9 +28,10 @@ class ClassificationModel(nn.Module):
 
     def frequency_mask(self, x):
         if self.no_fq_mask:
+            return x
+        else:
             x = dct_2d(x)
-        x = self.mask(x)  
-        if self.no_fq_mask:
+            x = self.mask(x)  
             x = idct_2d(x)
         return x
 
