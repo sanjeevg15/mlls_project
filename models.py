@@ -11,7 +11,9 @@ ssl._create_default_https_context = ssl._create_unverified_context
 class ClassificationModel(nn.Module):
     def __init__(self, input_shape, dim=128, use_resnet=False, resnet_type='resnet18', no_fq_mask=False) -> None:
         super().__init__()
-        self.mask = Mask(input_shape)
+        if no_fq_mask:
+            self.mask = Mask(input_shape, initialization='ones')
+            self.mask.requires_grad_ = False
         self.use_resnet = use_resnet
         self.no_fq_mask = no_fq_mask
         if not use_resnet:
