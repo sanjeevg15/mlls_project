@@ -13,7 +13,7 @@ class ClassificationModel(nn.Module):
         super().__init__()
         self.mask = Mask(input_shape, initialization=mask_initialization)
         if no_fq_mask:
-            self.mask.requires_grad_ = False
+            self.mask.weights.requires_grad = False
         self.use_resnet = use_resnet
         self.no_fq_mask = no_fq_mask
         if not use_resnet:

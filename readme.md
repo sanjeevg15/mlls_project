@@ -3,7 +3,7 @@
 ### File Descriptions:
 - models.py: Model definition for different models
 - utils.py: Some helpful function definitions
-- train_classificatiob.py: Train a classification model on a domain generalization dataset organized according to the following file structure
+- train_classification.py: Train a classification model on a domain generalization dataset organized according to the following file structure
 
     - Dataset
         - Domain 1
