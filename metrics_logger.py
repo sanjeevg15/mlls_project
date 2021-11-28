@@ -9,7 +9,7 @@ class MetricsLogger:
     def __init__(self, model_details):
         self.metrics_dict = {}
         self.model_details=model_details
-        self.metrics_dict['Model Details'] = self.model_detials
+        self.metrics_dict['Model Details'] = self.model_details
 
         pass
     
