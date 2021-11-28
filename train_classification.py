@@ -123,8 +123,7 @@ for target_domain in range(min_target_domain, max_target_domain):
 
         # logging mean epoch loss
         avg_loss = np.mean(epoch_loss)
-        logger.add_metric('train_accuracy', epoch, train_accuracy)
-        logger.add_metric('test_accuracy', epoch, test_accuracy)
+
         writer.add_scalar('loss/mean_c_entropy_per_epoch', avg_loss, epoch+1)
         print('[%d] mean epoch loss: %0.3f' % (epoch+1, avg_loss))
         model.eval()
@@ -150,6 +149,8 @@ for target_domain in range(min_target_domain, max_target_domain):
         writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[target_domain]), test_accuracy.item(), epoch+1)
         
         # logging histogram of mask values
+        logger.add_metric('train_accuracy', epoch, train_accuracy)
+        logger.add_metric('test_accuracy', epoch, test_accuracy)
         writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).
         clone().cpu().data.numpy(), epoch+1)
 
