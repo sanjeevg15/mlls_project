@@ -192,7 +192,7 @@ if __name__ == '__main__':
 
         # Training Details
         model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': args.no_fq_mask, 'Optimizer': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
-        train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, model_details_dict, save_dir) #Initiate training 
+        train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, save_dir, model_details_dict) #Initiate training 
 
         # Print/Save metrics
         # print("Best test accuracies on all target domains:", domain_best_accuracies)
