@@ -61,7 +61,7 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
 
         writer.add_scalar('loss/mean_c_entropy_per_epoch', avg_loss, epoch+1)
         print('[%d] mean epoch loss: %0.3f' % (epoch+1, avg_loss))
-        # model.eval()
+        model.eval()
 
         # logging accuracy on complete train set
         correct = 0
