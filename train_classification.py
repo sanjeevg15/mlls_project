@@ -172,8 +172,8 @@ if __name__ == '__main__':
         source_dataset = data.ConcatDataset(concat_datasets)
         target_dataset = domain_datasets[domains[target_domain]]
 
-        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, num_workers=2, shuffle=True)
-        target_loader = DataLoader(target_dataset, batch_size=args.batch_size, num_workers=2)
+        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, num_workers=2, shuffle=True, pin_memory=True)
+        target_loader = DataLoader(target_dataset, batch_size=args.batch_size, num_workers=2, pin_memory=True)
 
         model = ClassificationModel(input_shape=args.input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18', no_fq_mask=args.no_fq_mask, mask_initialization=initialization).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
@@ -196,7 +196,7 @@ if __name__ == '__main__':
 
 
         # Training Details
-        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': not(args.no_fq_mask), 'Optimizers': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
+        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': not(args.no_fq_mask), 'Optimizers': str(optimizer),'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
         train_model(model, num_epochs, optimizer, loss_fn, train_regime, log_dir, save_dir, model_details_dict, test=args.test) #Initiate training 
 
 
