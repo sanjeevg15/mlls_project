@@ -53,8 +53,8 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
             logger.add_metric('freq_mask_change', total_iters, current_weigths_diff)
             logger.add_metric('mask_weights_grad', total_iters, model.mask.weights.grad)
             mask_weights1 = mask_weights2
-            # if i == 5:
-            #     break
+            if i == 5:
+                break
 
         # logging mean epoch loss
         avg_loss = np.mean(epoch_loss)
@@ -69,8 +69,8 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
             outputs = model(inputs.to(device))
             _, outputs = torch.max(outputs, dim=1)
             correct += (outputs == labels.to(device)).float().sum()
-            # if i == 5:
-            #     break
+            if i == 5:
+                break
         train_accuracy = 100 * correct / len(source_dataset)
         print("Accuracy on train-dataset:", train_accuracy.item())
         logger.add_metric('train_accuracy', epoch, train_accuracy.item())
@@ -83,8 +83,8 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime, initializat
             outputs = model(inputs.to(device))
             _, outputs = torch.max(outputs, dim=1)
             correct += (outputs == labels.to(device)).float().sum()
-            # if i == 5:
-            #     break
+            if i == 5:
+                break
         test_accuracy = 100 * correct / len(target_dataset)
         print("Accuracy on test-dataset[{}]:".format(domains[target_domain]), test_accuracy.item())
         logger.add_metric('test_accuracy', epoch, test_accuracy.item())
@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
 
         # Training Details
-        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': args.no_fq_mask, 'Optimizer': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
+        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': not(args.no_fq_mask), 'Optimizer': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
         train_model(model, num_epochs, optimizer, loss_fn, train_regime, initialization, log_dir, save_dir, model_details_dict) #Initiate training 
 
         # Print/Save metrics
