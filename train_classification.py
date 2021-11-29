@@ -16,7 +16,7 @@ from PIL import Image
 from tensorboardX import SummaryWriter
 from metrics_logger import MetricsLogger
 
-def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', log_dir='./logs', save_dir='./ckpt', model_details_dict={}, save_ckpt='best'):
+def train_model(train_uid, domain, model, num_epochs, optimizer, loss_fn, train_regime='normal', log_dir='./logs', save_dir='./ckpt', model_details_dict={}, save_ckpt='best'):
     # Initialize variables to log metrics
     total_iters = 0
     mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
@@ -119,7 +119,7 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
     
     # domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
     logger.add_metric('best_target_accuracies', domains[target_domain], best_test_accuracy)
-    logger.save_dict()
+    logger.save_dict(train_uid=train_uid, domain=domain)
     
     # Logging Specifics 
 
@@ -140,6 +140,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_ckpt', default='best', type=str, help='Checkpoint saving strategy')
     parser.add_argument('--train_regime', default='normal', type=str, help = " 'normal' or 'alternating'. If normal, all layers are trained simultaneously. If alternating, frequency mask & remaining layers are trained alternatively keeping one part frozen every time")
     parser.add_argument('--initialization', default='ones', type=str, help="'ones' or 'random_normal' or 'xavier' initialization for the frequency mask")
+    parser.add_argument('--train_uid', required=True, type=str, help="unique identifier for a training - useful to differentiate the log and save dirs")
     args = parser.parse_args()
 
 
@@ -181,8 +182,8 @@ if __name__ == '__main__':
         source_dataset = data.ConcatDataset(concat_datasets)
         target_dataset = domain_datasets[domains[target_domain]]
 
-        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, shuffle=True)
-        target_loader = DataLoader(target_dataset, batch_size=args.batch_size)
+        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, shuffle=True, pin_memory=True)
+        target_loader = DataLoader(target_dataset, batch_size=args.batch_size, pin_memory=True)
 
         model = ClassificationModel(input_shape=args.input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18', no_fq_mask=args.no_fq_mask, mask_initialization=initialization).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
@@ -192,8 +193,8 @@ if __name__ == '__main__':
 
 
         # create checkpoint and log dir
-        log_dir = os.path.join(args.log_dir, domains[target_domain])
-        save_dir = os.path.join(args.save_dir, domains[target_domain])
+        log_dir = os.path.join(args.log_dir, '{}_{}'.format(args.train_uid, domains[target_domain]))
+        save_dir = os.path.join(args.save_dir, '{}_{}'.format(args.train_uid, domains[target_domain]))
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         if not os.path.exists(log_dir):
@@ -202,7 +203,7 @@ if __name__ == '__main__':
 
         # Training Details
         model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': not(args.no_fq_mask), 'Optimizer': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
-        train_model(model, num_epochs, optimizer, loss_fn, train_regime, log_dir, save_dir, model_details_dict) #Initiate training 
+        train_model(args.train_uid, domains[target_domain], model, num_epochs, optimizer, loss_fn, train_regime, log_dir, save_dir, model_details_dict) #Initiate training 
 
 
 

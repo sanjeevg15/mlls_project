@@ -32,9 +32,9 @@ class MetricsLogger:
             plt.plot(x, y)
             plt.savefig(fname=fname, facecolor='white', )
     
-    def save_dict(self, save_path='auto'):
+    def save_dict(self, train_uid, domain, save_path='auto'):
         if save_path=='auto':
-            save_path = './metrics/metrics.pickle' + str(time())
+            save_path = './metrics/metrics.{}_{}.pickle'.format(train_uid, domain) + str(time())
         if not os.path.isdir(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path))
         with open(save_path, 'wb') as f:
