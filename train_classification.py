@@ -1,4 +1,3 @@
-from torch.cuda import current_blas_handle
 from torch.nn.modules.loss import CrossEntropyLoss
 from torch.utils import data
 # import matplotlib.pyplot as plt
@@ -13,19 +12,16 @@ from models import *
 import torch.optim as optim
 from tqdm import tqdm
 from PIL import Image
-from tensorboardX import SummaryWriter
 from metrics_logger import MetricsLogger
 
-def train_model(model, num_epochs, optimizers, loss_fn, train_regime='normal', log_dir='./logs', save_dir='./ckpt', model_details_dict={}, save_ckpt='best', test=False):
+def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', log_dir='./logs', save_dir='./ckpt', model_details_dict={}, save_ckpt='best', test=False):
     # Initialize variables to log metrics
     total_iters = 0
     mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
     mask_weigths_diff = []
-    optimizer1, optimizer2 = optimizers
 
     # Create logger to log metrics
     logger = MetricsLogger(model_details = model_details_dict)
-    writer = SummaryWriter(log_dir)
 
     if save_ckpt=='best':
         best_test_accuracy = 0.0 
@@ -45,23 +41,20 @@ def train_model(model, num_epochs, optimizers, loss_fn, train_regime='normal', l
             
 
         for i, (inputs, labels) in tqdm(enumerate(source_loader)):
-            optimizer1.zero_grad()
+            optimizer.zero_grad()
             outputs = model(inputs.to(device)) # [64 * 7]
             loss = loss_fn(outputs, labels.to(device))
 
             total_iters+=1
-            writer.add_scalar('loss/c_entropy_per_iteration', loss.item(), total_iters)
             logger.add_metric('loss', total_iters,loss.item())
-            loss.add_metric('freq_mask', total_iters, model.mask.weights)
+            logger.add_metric('freq_mask', total_iters, model.mask.weights)
             epoch_loss.append(loss.item())
             print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
             loss.backward()
-            optimizer1.step()
-            optimizer2.step()
+            optimizer.step()
             mask_weights2 = model.mask.weights.clone().cpu().data.numpy()
             mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
             current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
-            writer.add_scalar('freq_mask_weigths_norm_diff', current_weigths_diff, total_iters)
             logger.add_metric('freq_mask_change', total_iters, current_weigths_diff)
             logger.add_metric('mask_weights_grad', total_iters, model.mask.weights.grad)
             mask_weights1 = mask_weights2
@@ -72,7 +65,6 @@ def train_model(model, num_epochs, optimizers, loss_fn, train_regime='normal', l
         # logging mean epoch loss
         avg_loss = np.mean(epoch_loss)
 
-        writer.add_scalar('loss/mean_c_entropy_per_epoch', avg_loss, epoch+1)
         print('[%d] mean epoch loss: %0.3f' % (epoch+1, avg_loss))
         model.eval()
 
@@ -89,7 +81,6 @@ def train_model(model, num_epochs, optimizers, loss_fn, train_regime='normal', l
         print("Accuracy on train-dataset:", train_accuracy.item())
         logger.add_metric('train_accuracy', epoch, train_accuracy.item())
 
-        writer.add_scalar('accuracy/train_set_accuracy_per_epoch', train_accuracy.item(), epoch+1)
 
         # logging accuracy on complete test set
         correct = 0
@@ -104,13 +95,6 @@ def train_model(model, num_epochs, optimizers, loss_fn, train_regime='normal', l
         print("Accuracy on test-dataset[{}]:".format(domains[target_domain]), test_accuracy.item())
         logger.add_metric('test_accuracy', epoch, test_accuracy.item())
 
-        writer.add_scalar('accuracy/test_set_accuracy_per_epoch:{}'.format(domains[target_domain]), test_accuracy.item(), epoch+1)
-
-        # logging histogram of mask values
-        writer.add_histogram('histogram/mask', torch.sigmoid(model.mask.weights).
-        clone().cpu().data.numpy(), epoch+1)
-
-        # saving the model
         if save_ckpt=='last':
             torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_last.pt'))
             if test_accuracy > best_test_accuracy:
@@ -124,7 +108,7 @@ def train_model(model, num_epochs, optimizers, loss_fn, train_regime='normal', l
     
     # domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
     logger.add_metric('best_target_accuracies', domains[target_domain], best_test_accuracy)
-    logger.save_dict(train_uid=train_uid, domain=domain)
+    logger.save_dict()
     
     # Logging Specifics 
 
@@ -188,23 +172,23 @@ if __name__ == '__main__':
         source_dataset = data.ConcatDataset(concat_datasets)
         target_dataset = domain_datasets[domains[target_domain]]
 
-        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, num_workers=2, shuffle=True, pin_memory=True)
-        target_loader = DataLoader(target_dataset, batch_size=args.batch_size, num_workers=2, pin_memory=True)
+        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, num_workers=2, shuffle=True)
+        target_loader = DataLoader(target_dataset, batch_size=args.batch_size, num_workers=2)
 
         model = ClassificationModel(input_shape=args.input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18', no_fq_mask=args.no_fq_mask, mask_initialization=initialization).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
         # Training Specifics
-        params1 = (i for i in list(model.parameters())[1:])
-        params2 = (i for i in list(model.parameters())[0])
-        optimizer1 = optim.Adam(params=params1, lr=args.lr1)
-        optimizer2 = optim.Adam(params=params2, lr=args.lr2)
-        optimizers = [optimizer1, optimizer2]
+        # params1 = (i for i in list(model.parameters())[1:])
+        # params2 = (i for i in list(model.parameters())[0])
+        optimizer = optim.Adam([
+            {"params":model.mask.parameters(), "lr":args.lr1},
+            {"params":model.resnet.parameters(), "lr":args.lr2}])
         loss_fn = CrossEntropyLoss()
 
 
         # create checkpoint and log dir
-        log_dir = os.path.join(args.log_dir, '{}_{}'.format(args.train_uid, domains[target_domain]))
-        save_dir = os.path.join(args.save_dir, '{}_{}'.format(args.train_uid, domains[target_domain]))
+        log_dir = args.log_dir
+        save_dir = args.save_dir
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         if not os.path.exists(log_dir):
@@ -212,8 +196,8 @@ if __name__ == '__main__':
 
 
         # Training Details
-        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': not(args.no_fq_mask), 'Optimizers': optimizers,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
-        train_model(model, num_epochs, optimizers, loss_fn, train_regime, log_dir, save_dir, model_details_dict, test=args.test) #Initiate training 
+        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': not(args.no_fq_mask), 'Optimizers': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
+        train_model(model, num_epochs, optimizer, loss_fn, train_regime, log_dir, save_dir, model_details_dict, test=args.test) #Initiate training 
 
 
 
