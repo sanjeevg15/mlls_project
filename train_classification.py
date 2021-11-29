@@ -124,7 +124,7 @@ def train_model(model, num_epochs, optimizers, loss_fn, train_regime='normal', l
     
     # domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
     logger.add_metric('best_target_accuracies', domains[target_domain], best_test_accuracy)
-    logger.save_dict()
+    logger.save_dict(train_uid=train_uid, domain=domain)
     
     # Logging Specifics 
 
@@ -188,8 +188,8 @@ if __name__ == '__main__':
         source_dataset = data.ConcatDataset(concat_datasets)
         target_dataset = domain_datasets[domains[target_domain]]
 
-        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, shuffle=True)
-        target_loader = DataLoader(target_dataset, batch_size=args.batch_size)
+        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, num_workers=2, shuffle=True, pin_memory=True)
+        target_loader = DataLoader(target_dataset, batch_size=args.batch_size, num_workers=2, pin_memory=True)
 
         model = ClassificationModel(input_shape=args.input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18', no_fq_mask=args.no_fq_mask, mask_initialization=initialization).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
@@ -203,8 +203,8 @@ if __name__ == '__main__':
 
 
         # create checkpoint and log dir
-        log_dir = os.path.join(args.log_dir, domains[target_domain])
-        save_dir = os.path.join(args.save_dir, domains[target_domain])
+        log_dir = os.path.join(args.log_dir, '{}_{}'.format(args.train_uid, domains[target_domain]))
+        save_dir = os.path.join(args.save_dir, '{}_{}'.format(args.train_uid, domains[target_domain]))
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         if not os.path.exists(log_dir):
