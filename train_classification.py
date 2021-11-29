@@ -107,7 +107,7 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
             torch.save(model.state_dict(), os.path.join(save_dir, 'ckpt_{}.pt'.format(epoch+1)))
     
     # domain_best_accuracies[domains[target_domain]] = best_test_accuracy.item()
-    logger.add_metric('best_target_accuracies', domains[target_domain], best_test_accuracy)
+    logger.add_metric('best_target_accuracies', domains[target_domain], float(best_test_accuracy))
     logger.save_dict()
     
     # Logging Specifics 
