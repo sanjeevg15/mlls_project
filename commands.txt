@@ -1,0 +1,9 @@
+python train_classification.py --data_root ../../dataset/pacs/pacs_data_original --target_domain 0 --num_epochs 15 &
+
+python train_classification.py --data_root ../../dataset/pacs/pacs_data_original --target_domain 0 --num_epochs 15 --no_fq_mask &
+
+python train_classification.py --data_root ../../dataset/pacs/pacs_data_original --target_domain 0 --num_epochs 15 --initialization random_normal&
+
+python train_classification.py --data_root ../../dataset/pacs/pacs_data_original --target_domain 0 --num_epochs 15 --initialization random_normal --lr1 1e-3 --lr2 1e-4&
+
+python train_classification.py --data_root ../../dataset/pacs/pacs_data_original --target_domain 0 --num_epochs 15 --initialization ones --lr1 1e-3 --lr2 1e-4&
