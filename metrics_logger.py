@@ -34,7 +34,7 @@ class MetricsLogger:
     
     def save_dict(self, save_path='auto'):
         if save_path=='auto':
-            save_path = './metrics/metrics.pickle'+ str(time())
+            save_path = './metrics/metrics_'+ str(time())
         if not os.path.isdir(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path))
         with open(save_path, 'wb') as f:
