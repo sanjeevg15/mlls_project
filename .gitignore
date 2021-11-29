@@ -2,3 +2,5 @@ playground.ipynb
 __pycache__/
 datasets/
 plan.txt
+/logs
+/metrics
