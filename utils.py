@@ -163,6 +163,7 @@ class Mask(nn.Module):
         elif initialization=='xavier':
             pass
         elif initialization=='random_normal':
+            self.weights = torch.rand(input_dims)
             nn.init.normal_(self.weights)
         self.weights = nn.Parameter(weights)
 
