@@ -47,7 +47,6 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
 
             total_iters+=1
             logger.add_metric('loss', total_iters,loss.item())
-            logger.add_metric('freq_mask', total_iters, model.mask.weights.clone().cpu().data.numpy())
             epoch_loss.append(loss.item())
             print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
             loss.backward()
@@ -56,7 +55,7 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
             mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
             current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
             logger.add_metric('freq_mask_change', total_iters, current_weigths_diff)
-            logger.add_metric('mask_weights_grad', total_iters, np.linalg.norm(model.mask.weights.grad.clone().cpu().data.numpy()))
+            logger.add_metric('mask_weights_grad_norm', total_iters, np.linalg.norm(model.mask.weights.grad.clone().cpu().data.numpy()))
             mask_weights1 = mask_weights2
             if test:
                 if i == 5:
@@ -80,6 +79,7 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
         train_accuracy = 100 * correct / len(source_dataset)
         print("Accuracy on train-dataset:", train_accuracy.item())
         logger.add_metric('train_accuracy', epoch, train_accuracy.item())
+        logger.add_metric('freq_mask', epoch, model.mask.weights.clone().cpu().data.numpy())
 
 
         # logging accuracy on complete test set
