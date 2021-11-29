@@ -160,12 +160,13 @@ class Mask(nn.Module):
         super().__init__()
         if initialization=='ones':
             weights = torch.ones(input_dims)
+            self.weights = nn.Parameter(weights)
         elif initialization=='xavier':
             pass
         elif initialization=='random_normal':
-            self.weights = torch.rand(input_dims)
+            weights = torch.rand(input_dims)
+            self.weights = nn.Parameter(weights)
             nn.init.normal_(self.weights)
-        self.weights = nn.Parameter(weights)
 
     def forward(self, x, use_sigmoid=False):
         # print('X Shape: ', x.shape)
