@@ -166,10 +166,14 @@ class Mask(nn.Module):
             nn.init.normal_(self.weights)
         self.weights = nn.Parameter(weights)
 
-    def forward(self, x):
+    def forward(self, x, use_sigmoid=False):
         # print('X Shape: ', x.shape)
         # print('Weigths Shape: ', self.weights.shape)
-        x = x * torch.sigmoid(self.weights.unsqueeze(0))
+        if use_sigmoid:
+            x = x * torch.sigmoid(self.weights.unsqueeze(0))
+        else:
+            x = x*self.weights.unsqueeze(0)
+
         return x
 
 
