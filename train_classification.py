@@ -16,11 +16,12 @@ from PIL import Image
 from tensorboardX import SummaryWriter
 from metrics_logger import MetricsLogger
 
-def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', log_dir='./logs', save_dir='./ckpt', model_details_dict={}, save_ckpt='best'):
+def train_model(model, num_epochs, optimizers, loss_fn, train_regime='normal', log_dir='./logs', save_dir='./ckpt', model_details_dict={}, save_ckpt='best', test=False):
     # Initialize variables to log metrics
     total_iters = 0
     mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
     mask_weigths_diff = []
+    optimizer1, optimizer2 = optimizers
 
     # Create logger to log metrics
     logger = MetricsLogger(model_details = model_details_dict)
@@ -44,18 +45,19 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
             
 
         for i, (inputs, labels) in tqdm(enumerate(source_loader)):
-            optimizer.zero_grad()
+            optimizer1.zero_grad()
             outputs = model(inputs.to(device)) # [64 * 7]
             loss = loss_fn(outputs, labels.to(device))
 
             total_iters+=1
             writer.add_scalar('loss/c_entropy_per_iteration', loss.item(), total_iters)
             logger.add_metric('loss', total_iters,loss.item())
-
+            loss.add_metric('freq_mask', total_iters, model.mask.weights)
             epoch_loss.append(loss.item())
             print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
             loss.backward()
-            optimizer.step()
+            optimizer1.step()
+            optimizer2.step()
             mask_weights2 = model.mask.weights.clone().cpu().data.numpy()
             mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
             current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
@@ -63,8 +65,9 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
             logger.add_metric('freq_mask_change', total_iters, current_weigths_diff)
             logger.add_metric('mask_weights_grad', total_iters, model.mask.weights.grad)
             mask_weights1 = mask_weights2
-            # if i == 5:
-            #     break
+            if test:
+                if i == 5:
+                    break
 
         # logging mean epoch loss
         avg_loss = np.mean(epoch_loss)
@@ -79,8 +82,9 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
             outputs = model(inputs.to(device))
             _, outputs = torch.max(outputs, dim=1)
             correct += (outputs == labels.to(device)).float().sum()
-            # if i == 5:
-            #     break
+            if test:
+                if i == 5:
+                    break
         train_accuracy = 100 * correct / len(source_dataset)
         print("Accuracy on train-dataset:", train_accuracy.item())
         logger.add_metric('train_accuracy', epoch, train_accuracy.item())
@@ -93,8 +97,9 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
             outputs = model(inputs.to(device))
             _, outputs = torch.max(outputs, dim=1)
             correct += (outputs == labels.to(device)).float().sum()
-            # if i == 5:
-            #     break
+            if test:
+                if i == 5:
+                    break
         test_accuracy = 100 * correct / len(target_dataset)
         print("Accuracy on test-dataset[{}]:".format(domains[target_domain]), test_accuracy.item())
         logger.add_metric('test_accuracy', epoch, test_accuracy.item())
@@ -134,12 +139,14 @@ if __name__ == '__main__':
     parser.add_argument('--all_target_domain', default=False, action='store_true', help='Using on each domain as testing domain one at a time')
     parser.add_argument('--input_shape', default=224, type=int, help='Resize all images to this shape')
     parser.add_argument('--no_fq_mask', default=False, action='store_true', help='Turn off the frequency mask')
-    parser.add_argument('--lr', default=3e-5, type=float, help='Learning rate for training')
+    parser.add_argument('--lr1', default=1e-4, type=float, help='Learning rate for other layers training')
+    parser.add_argument('--lr2', default=1e-4, type=float, help='Learning rate for freq mask training')
     parser.add_argument('--save_dir', default='./ckpt', type=str, help='Directory to save model checkpoints')
     parser.add_argument('--log_dir', default='./logs', type=str, help='Directory to save tensorboard logs')
     parser.add_argument('--save_ckpt', default='best', type=str, help='Checkpoint saving strategy')
     parser.add_argument('--train_regime', default='normal', type=str, help = " 'normal' or 'alternating'. If normal, all layers are trained simultaneously. If alternating, frequency mask & remaining layers are trained alternatively keeping one part frozen every time")
     parser.add_argument('--initialization', default='ones', type=str, help="'ones' or 'random_normal' or 'xavier' initialization for the frequency mask")
+    parser.add_argument('--test', default=False, action='store_true', help='Quick test for debuggin purposes')
     args = parser.parse_args()
 
 
@@ -187,7 +194,11 @@ if __name__ == '__main__':
         model = ClassificationModel(input_shape=args.input_shape, dim=n_classes, use_resnet=True, resnet_type='resnet18', no_fq_mask=args.no_fq_mask, mask_initialization=initialization).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
         # Training Specifics
-        optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
+        params1 = (i for i in list(model.parameters())[1:])
+        params2 = (i for i in list(model.parameters())[0])
+        optimizer1 = optim.Adam(params=params1, lr=args.lr1)
+        optimizer2 = optim.Adam(params=params2, lr=args.lr2)
+        optimizers = [optimizer1, optimizer2]
         loss_fn = CrossEntropyLoss()
 
 
@@ -201,8 +212,8 @@ if __name__ == '__main__':
 
 
         # Training Details
-        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': not(args.no_fq_mask), 'Optimizer': optimizer,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
-        train_model(model, num_epochs, optimizer, loss_fn, train_regime, log_dir, save_dir, model_details_dict) #Initiate training 
+        model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': not(args.no_fq_mask), 'Optimizers': optimizers,'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
+        train_model(model, num_epochs, optimizers, loss_fn, train_regime, log_dir, save_dir, model_details_dict, test=args.test) #Initiate training 
 
 
 
