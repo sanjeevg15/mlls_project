@@ -42,7 +42,10 @@ class ClassificationModel(nn.Module):
         else:
             self.name = resnet_type
             resnet = torch.hub.load('pytorch/vision:v0.10.0', resnet_type, pretrained=True)
-            resnet.fc = nn.Linear(512, dim)
+            if self.name.startswith('resnet'):
+                resnet.fc = nn.Linear(512, dim)
+            if self.name.startswith('vgg'):
+                resnet.classifier[6] = nn.Linear(4096, dim)
             self.resnet = resnet
 
     def frequency_mask(self, x):
