@@ -14,11 +14,12 @@ from tqdm import tqdm
 from PIL import Image
 from metrics_logger import MetricsLogger
 
-def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', log_dir='./logs', save_dir='./ckpt', model_details_dict={}, save_ckpt='best', test=False):
+def train_model(model, num_epochs, fq_mask, optimizer, loss_fn, train_regime='normal', log_dir='./logs', save_dir='./ckpt', model_details_dict={}, save_ckpt='best', test=False):
     # Initialize variables to log metrics
     total_iters = 0
-    mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
-    mask_weigths_diff = []
+    if fq_mask:
+        mask_weights1 = model.mask.weights.clone().cpu().data.numpy()
+        mask_weigths_diff = []
 
     # Create logger to log metrics
     logger = MetricsLogger(model_details = model_details_dict)
@@ -29,7 +30,7 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
     for epoch in range(num_epochs):
         epoch_loss = []
         model.train()
-        if train_regime == 'alternating':
+        if train_regime == 'alternating': # TODO: change this to handle fq_mask
             if model.mask.weights.requires_grad:
                 for parameter in model.parameters():
                     parameter.requires_grad = True
@@ -51,13 +52,14 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
             print("{}-{}: Iteration Loss: {}".format(epoch+1, i+1, loss.item()))
             loss.backward()
             optimizer.step()
-            mask_weights2 = model.mask.weights.clone().cpu().data.numpy()
-            mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
-            current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
-            logger.add_metric('freq_mask_change', total_iters, current_weigths_diff)
-            if model.mask.weights.grad is not None:
-                logger.add_metric('mask_weights_grad_norm', total_iters, np.linalg.norm(model.mask.weights.grad.clone().cpu().data.numpy()))
-            mask_weights1 = mask_weights2
+            if fq_mask:
+                mask_weights2 = model.mask.weights.clone().cpu().data.numpy()
+                mask_weigths_diff.append(np.linalg.norm(mask_weights2-mask_weights1))
+                current_weigths_diff = np.linalg.norm(mask_weights2-mask_weights1)
+                logger.add_metric('freq_mask_change', total_iters, current_weigths_diff)
+                if model.mask.weights.grad is not None:
+                    logger.add_metric('mask_weights_grad_norm', total_iters, np.linalg.norm(model.mask.weights.grad.clone().cpu().data.numpy()))
+                mask_weights1 = mask_weights2
             if test:
                 if i == 5:
                     break
@@ -80,7 +82,8 @@ def train_model(model, num_epochs, optimizer, loss_fn, train_regime='normal', lo
         train_accuracy = 100 * correct / len(source_dataset)
         print("Accuracy on train-dataset:", train_accuracy.item())
         logger.add_metric('train_accuracy', epoch, train_accuracy.item())
-        logger.add_metric('freq_mask', epoch, model.mask.weights.clone().cpu().data.numpy())
+        if fq_mask:
+            logger.add_metric('freq_mask', epoch, model.mask.weights.clone().cpu().data.numpy())
 
 
         # logging accuracy on complete test set
@@ -133,6 +136,7 @@ if __name__ == '__main__':
     parser.add_argument('--initialization', default='ones', type=str, help="'ones' or 'random_normal' or 'xavier' initialization for the frequency mask")
     parser.add_argument('--test', default=False, action='store_true', help='Quick test for debuggin purposes')
     parser.add_argument('--resnet_type', default='None', type=str, help='Specify the resnet type') # resnet_18
+    parser.add_argument('--freeze_mask', default=False, action='store_true', help='Freeze the mask parameter as initialised')
     args = parser.parse_args()
 
 
@@ -177,14 +181,14 @@ if __name__ == '__main__':
         source_loader = DataLoader(source_dataset, batch_size=args.batch_size, num_workers=2, shuffle=True, pin_memory=True)
         target_loader = DataLoader(target_dataset, batch_size=args.batch_size, num_workers=2, pin_memory=True)
 
-        model = ClassificationModel(input_shape=args.input_shape, dim=n_classes, use_resnet=True, resnet_type=args.resnet_type, no_fq_mask=args.no_fq_mask, mask_initialization=initialization).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
+        model = ClassificationModel(input_shape=args.input_shape, dim=n_classes, use_resnet=True, resnet_type=args.resnet_type, no_fq_mask=args.no_fq_mask, freeze_mask=args.freeze_mask, mask_initialization=initialization).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 
         # Training Specifics
-        # params1 = (i for i in list(model.parameters())[1:])
-        # params2 = (i for i in list(model.parameters())[0])
-        optimizer = optim.Adam([
-            {"params":model.mask.parameters(), "lr":args.lr1},
-            {"params":model.conv_model.parameters(), "lr":args.lr2} if args.resnet_type=='None' else {"params":model.resnet.parameters(), "lr":args.lr2}])
+        param_groups = []
+        param_groups.append({"params":model.conv_model.parameters(), "lr":args.lr2} if args.resnet_type=='None' else {"params":model.resnet.parameters(), "lr":args.lr2})
+        if not args.no_fq_mask:
+            param_groups.append({"params":model.mask.parameters(), "lr":args.lr1})
+        optimizer = optim.Adam(param_groups)
         loss_fn = CrossEntropyLoss()
 
 
@@ -199,7 +203,7 @@ if __name__ == '__main__':
 
         # Training Details
         model_details_dict = {'Model Name': model.name, 'Target Domain':domains[target_domain], 'Freq Mask': not(args.no_fq_mask), 'Optimizers': str(optimizer),'Num Epochs': num_epochs, 'loss_fn': loss_fn, 'Initialization':initialization}
-        train_model(model, num_epochs, optimizer, loss_fn, train_regime, log_dir, save_dir, model_details_dict, test=args.test) #Initiate training 
+        train_model(model, num_epochs, not args.no_fq_mask, optimizer, loss_fn, train_regime, log_dir, save_dir, model_details_dict, test=args.test) #Initiate training 
 
 
 

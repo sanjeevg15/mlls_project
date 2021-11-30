@@ -28,11 +28,12 @@ class ConvNet(nn.Module):
         return x
 
 class ClassificationModel(nn.Module):
-    def __init__(self, input_shape, dim=10, use_resnet=False, resnet_type='resnet18', no_fq_mask=False, mask_initialization='ones') -> None:
+    def __init__(self, input_shape, dim=10, use_resnet=False, resnet_type='resnet18', no_fq_mask=False, freeze_mask=False, mask_initialization='ones') -> None:
         super().__init__()
-        self.mask = Mask(input_shape, initialization=mask_initialization)
-        if no_fq_mask:
-            self.mask.weights.requires_grad = False
+        if not no_fq_mask:
+            self.mask = Mask(input_shape, initialization=mask_initialization)
+            if freeze_mask:
+                self.mask.weights.requires_grad = False
         self.resnet_type = resnet_type
         self.no_fq_mask = no_fq_mask
         if self.resnet_type=='None':
