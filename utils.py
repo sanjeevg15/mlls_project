@@ -158,6 +158,7 @@ class DCT2D(nn.Module):
 class Mask(nn.Module):
     def __init__(self, input_dims, initialization='ones'):
         super().__init__()
+        input_dims = [input_dims, input_dims]
         if initialization=='ones':
             if len(input_dims == 1):
                 input_dims = [input_dims, input_dims]
@@ -171,6 +172,15 @@ class Mask(nn.Module):
             weights = torch.rand(input_dims)
             self.weights = nn.Parameter(weights)
             nn.init.normal_(self.weights)
+        else:
+            onezero, i1, j1, i2, j2 = initialization.strip().split('_')
+            assert(onezero=='onezero')
+            i1, j1, i2, j2 = int(i1), int(j1), int(i2), int(j2)
+            assert(i1>=0 and i2>=0 and j1>=0 and j2>=0 and i1<i2 and j1<j2 and i2<=input_dims[1] and j2<=input_dims[2]) 
+            weights = torch.ones(input_dims)
+            weights[:, i1:i2, j1:j2] = 0.0
+            self.weights = nn.Parameter(weights)
+
 
     def forward(self, x, use_sigmoid=False):
         # print('X Shape: ', x.shape)
@@ -178,6 +188,8 @@ class Mask(nn.Module):
         if use_sigmoid:
             x = x * torch.sigmoid(self.weights.unsqueeze(0))
         else:
+            print("x.shape", x.shape)
+            print("self.weights.unsqueeze(0)", self.weights.unsqueeze(0).shape)
             x = x*self.weights.unsqueeze(0)
 
         return x
