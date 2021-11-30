@@ -4,3 +4,11 @@ datasets/
 plan.txt
 /logs
 /metrics
+metrics.zip
+metrics_2.zip
+metrics_1.zip
+metrics_1/
+metrics_2/
+metrics/
+.gitignore
+figures/
