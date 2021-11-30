@@ -159,11 +159,15 @@ class Mask(nn.Module):
     def __init__(self, input_dims, initialization='ones'):
         super().__init__()
         if initialization=='ones':
+            if len(input_dims == 1):
+                input_dims = [input_dims, input_dims]
             weights = torch.ones(input_dims)
             self.weights = nn.Parameter(weights)
         elif initialization=='xavier':
             pass
         elif initialization=='random_normal':
+            if len(input_dims == 1):
+                input_dims = [input_dims, input_dims]
             weights = torch.rand(input_dims)
             self.weights = nn.Parameter(weights)
             nn.init.normal_(self.weights)
