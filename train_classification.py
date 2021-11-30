@@ -147,7 +147,7 @@ if __name__ == '__main__':
 
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu') #Select device
 
-    transform = T.Compose([T.Resize((224,224)), 
+    transform = T.Compose([T.Resize((args.input_shape, args.input_shape)), 
                 T.ToTensor(), 
                 T.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])]) #Transform every image as per the mentioned transform
 
@@ -178,8 +178,8 @@ if __name__ == '__main__':
         source_dataset = data.ConcatDataset(concat_datasets)
         target_dataset = domain_datasets[domains[target_domain]]
 
-        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, num_workers=2, shuffle=True, pin_memory=True)
-        target_loader = DataLoader(target_dataset, batch_size=args.batch_size, num_workers=2, pin_memory=True)
+        source_loader = DataLoader(source_dataset, batch_size=args.batch_size, num_workers=5, shuffle=True, pin_memory=True)
+        target_loader = DataLoader(target_dataset, batch_size=args.batch_size, num_workers=5, pin_memory=True)
 
         model = ClassificationModel(input_shape=args.input_shape, dim=n_classes, use_resnet=True, resnet_type=args.resnet_type, no_fq_mask=args.no_fq_mask, freeze_mask=args.freeze_mask, mask_initialization=initialization).to(device) # resnet_type can be: 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
 

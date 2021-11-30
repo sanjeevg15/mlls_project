@@ -158,6 +158,7 @@ class DCT2D(nn.Module):
 class Mask(nn.Module):
     def __init__(self, input_dims, initialization='ones'):
         super().__init__()
+        input_dims = [input_dims, input_dims]
         if initialization=='ones':
             weights = torch.ones(input_dims)
             self.weights = nn.Parameter(weights)
@@ -183,6 +184,8 @@ class Mask(nn.Module):
         if use_sigmoid:
             x = x * torch.sigmoid(self.weights.unsqueeze(0))
         else:
+            print("x.shape", x.shape)
+            print("self.weights.unsqueeze(0)", self.weights.unsqueeze(0).shape)
             x = x*self.weights.unsqueeze(0)
 
         return x
