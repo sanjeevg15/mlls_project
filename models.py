@@ -53,7 +53,7 @@ class ClassificationModel(nn.Module):
         return x
 
     def convnet(self, x):
-        self.conv_model(x)
+        return self.conv_model(x)
 
     def forward(self, x):
         x = self.frequency_mask(x)
