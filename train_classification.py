@@ -119,7 +119,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Auto FSDR Training')
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--num_epochs', default=100, type=int)
-    parser.add_argument('--data_root', type=str)    parser.add_argument('--data_root', type=str)
+    parser.add_argument('--data_root', type=str)
     parser.add_argument('--target_domain', default=0, type=int, help='Index of the target domain. Remaining domains will be treated as source domains')
     parser.add_argument('--all_target_domain', default=False, action='store_true', help='Using on each domain as testing domain one at a time')
     parser.add_argument('--input_shape', default=224, type=int, help='Resize all images to this shape')
@@ -132,7 +132,7 @@ if __name__ == '__main__':
     parser.add_argument('--train_regime', default='normal', type=str, help = " 'normal' or 'alternating'. If normal, all layers are trained simultaneously. If alternating, frequency mask & remaining layers are trained alternatively keeping one part frozen every time")
     parser.add_argument('--initialization', default='ones', type=str, help="'ones' or 'random_normal' or 'xavier' initialization for the frequency mask")
     parser.add_argument('--test', default=False, action='store_true', help='Quick test for debuggin purposes')
-    parser.add_argument('--resnet_type', default='None', type=str, required=True, help='Specify the resnet type') # resnet_18
+    parser.add_argument('--resnet_type', default='None', type=str, help='Specify the resnet type') # resnet_18
     args = parser.parse_args()
 
 
@@ -184,7 +184,7 @@ if __name__ == '__main__':
         # params2 = (i for i in list(model.parameters())[0])
         optimizer = optim.Adam([
             {"params":model.mask.parameters(), "lr":args.lr1},
-            {"params":model.resnet.parameters(), "lr":args.lr2}])
+            {"params":model.conv_model.parameters(), "lr":args.lr2} if args.resnet_type=='None' else {"params":model.resnet.parameters(), "lr":args.lr2}])
         loss_fn = CrossEntropyLoss()
 
 

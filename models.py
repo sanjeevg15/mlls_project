@@ -10,11 +10,12 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 class ConvNet(nn.Module):
     def __init__(self, dim):
-        self.conv1 = nn.Conv2d(3, 6, 3, padding=(2, 2))  
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 6, 3, padding=(2, 2)) 
         self.pool = nn.MaxPool2d(2, 2)  # Out: 10x114x114
         self.conv2 = nn.Conv2d(6, 10, 3)  # Out: 10x112x112
         self.conv3 = nn.Conv2d(10, 16, 3)  # Out: 16x110x110
-        self.fc1 = nn.Linear(16*110*110, 256)
+        self.fc1 = nn.Linear(190096, 256)
         self.fc2 = nn.Linear(256, dim)
 
     def forward(self, x):
@@ -32,9 +33,9 @@ class ClassificationModel(nn.Module):
         self.mask = Mask(input_shape, initialization=mask_initialization)
         if no_fq_mask:
             self.mask.weights.requires_grad = False
-        self.use_resnet = use_resnet
+        self.resnet_type = resnet_type
         self.no_fq_mask = no_fq_mask
-        if resnet_type=='None':
+        if self.resnet_type=='None':
             self.name = 'Basic'
             self.conv_model = ConvNet(dim)
         else:
@@ -57,7 +58,7 @@ class ClassificationModel(nn.Module):
 
     def forward(self, x):
         x = self.frequency_mask(x)
-        if self.use_resnet:
+        if self.resnet_type!='None':
             x = self.resnet(x)
         else:
             x = self.convnet(x)
