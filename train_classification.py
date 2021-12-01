@@ -36,11 +36,11 @@ def train_model(model, num_epochs, fq_mask, optimizer, loss_fn, train_regime='no
             if model.mask.weights.requires_grad:
                 for parameter in model.parameters():
                     parameter.requires_grad = True
-                    model.mask.weights.requires_grad = False
+                model.mask.weights.requires_grad = False
             else:
                 for parameter in model.parameters():
                     parameter.requires_grad = False
-                    model.mask.weights.requires_grad = True
+                model.mask.weights.requires_grad = True
             
 
         for i, (inputs, labels) in tqdm(enumerate(source_loader)):
