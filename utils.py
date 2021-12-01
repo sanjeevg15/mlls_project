@@ -184,8 +184,8 @@ class Mask(nn.Module):
         if use_sigmoid:
             x = x * torch.sigmoid(self.weights.unsqueeze(0))
         else:
-            print("x.shape", x.shape)
-            print("self.weights.unsqueeze(0)", self.weights.unsqueeze(0).shape)
+            # print("x.shape", x.shape)
+            # print("self.weights.unsqueeze(0)", self.weights.unsqueeze(0).shape)
             x = x*self.weights.unsqueeze(0)
 
         return x

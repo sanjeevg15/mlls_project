@@ -13,6 +13,8 @@ import torch.optim as optim
 from tqdm import tqdm
 from PIL import Image
 from metrics_logger import MetricsLogger
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def train_model(model, num_epochs, fq_mask, optimizer, loss_fn, train_regime='normal', log_dir='./logs', save_dir='./ckpt', model_details_dict={}, save_ckpt='best', test=False):
     # Initialize variables to log metrics
